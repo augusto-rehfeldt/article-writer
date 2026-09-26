@@ -718,6 +718,30 @@ def test_already_written_lists_past_topics_newest_first() -> None:
     assert pipeline.already_written(pathlib.Path(tmp) / "no-existe") == []
 
 
+def test_interests_come_from_a_file_that_setup_rewrites() -> None:
+    """A fresh clone has no interests.txt: the shipped example is the fallback, and
+    `--setup` copies it and lets the user replace it."""
+    saved = pipeline.INTERESTS_FILE, pipeline.INTERESTS_EXAMPLE
+    with tempfile.TemporaryDirectory() as tmp:
+        example = pathlib.Path(tmp) / "interests.example.txt"
+        example.write_text("# comentario\nastronáutica, cohetes\n\ndinosaurios\n", encoding="utf-8")
+        pipeline.INTERESTS_FILE = pathlib.Path(tmp) / "interests.txt"
+        pipeline.INTERESTS_EXAMPLE = example
+        try:
+            assert pipeline.interest_areas() == ["astronáutica, cohetes", "dinosaurios"]
+            answers = iter(["lingüística", "aviación: historia", ""])
+            __import__("main").edit_interests(read=lambda *_: next(answers))
+            assert pipeline.interest_areas() == ["lingüística", "aviación: historia"]
+            assert pipeline.INTERESTS_FILE.read_text(encoding="utf-8").startswith("# comentario")
+            __import__("main").edit_interests(read=lambda *_: "")      # Enter keeps them
+            assert pipeline.interest_areas() == ["lingüística", "aviación: historia"]
+        finally:
+            pipeline.INTERESTS_FILE, pipeline.INTERESTS_EXAMPLE = saved
+    assert pipeline._area_query("filosofía de la mente: conciencia, qualia") == "filosofía de la mente"
+    assert pipeline._area_query("astronáutica, astrofísica") == "astronáutica"
+    assert pipeline.interest_areas(), "the shipped example must not be empty"
+
+
 def test_windows_split_on_paragraph_boundaries() -> None:
     """Windows never cut or repeat a paragraph; only a short tail may be dropped."""
     paras = [f"p{i} " + "palabra " * 100 for i in range(10)]

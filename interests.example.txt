@@ -1,0 +1,24 @@
+# Author interests, one area per line. Lines starting with # are ignored.
+# `python main.py --setup` copies this file to interests.txt (personal, gitignored)
+# and lets you rewrite it. Each run samples a few areas so topics vary; the first
+# comma-separated term of a line is also the news query for that area.
+ciencia ficción como forma de pensamiento social: utopía y distopía, primer contacto, ciencia ficción evolutiva, Le Guin, Dick, Lem, Strugatski, Ballard, Butler, Stapledon, Cixin Liu, cyberpunk, imaginarios del futuro y del fin del mundo
+historia alternativa y ucronía: puntos de divergencia, historia contrafáctica, contingencia y necesidad en el proceso histórico
+crítica del valor, wertkritik (Kurz, Postone, Jappe, Scholz, Trenkle), crítica de la economía política, crítica del trabajo abstracto, fetichismo y forma-valor
+psicoanálisis lacaniano (Lacan, Žižek), Mark Fisher y el realismo capitalista, teoría crítica, ideología y cultura popular
+cibernética y planificación económica, historia del socialismo real
+economía política de América Latina y Argentina, crítica política argentina y mundial, datos económicos y análisis cuantitativo
+ecología política y crisis climática
+lingüística: lenguas, gramática, cambio lingüístico, origen del lenguaje
+paradojas lógicas y semánticas, lógica y fundamentos de la matemática
+filosofía de la mente: conciencia, qualia, problema difícil, identidad personal, qué es lo humano
+videojuegos, sobre todo de aventura, sigilo y mundo abierto: diseño, narrativa, historia del medio
+inteligencia artificial y automatización
+astronáutica, astrofísica, vuelo espacial, naves generacionales, viaje interestelar, colonización del espacio
+paradoja de Fermi, vida extraterrestre y astrobiología
+aviación e historia de la aviación, aviones militares y civiles
+buques, historia naval y poder marítimo
+tecnología militar y equipamiento, conflictos contemporáneos
+guerras mundiales, historia moderna y contemporánea (siglos XIX y XX)
+evolución, biología evolutiva, evolución especulativa (spec evo), animales
+dinosaurios y paleontología

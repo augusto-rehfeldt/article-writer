@@ -98,6 +98,30 @@ def save_env(pairs: dict[str, str], path: pathlib.Path = ROOT / ".env") -> None:
 SHARED_MENU = sys.stdin.isatty()
 
 
+def edit_interests(read=input) -> None:
+    """First `--setup` copies interests.example.txt to interests.txt (personal,
+    gitignored); every `--setup` shows the list and offers to replace it."""
+    f = pipeline.INTERESTS_FILE
+    if not f.exists():
+        f.write_text(pipeline.INTERESTS_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
+    print(ui.c(f"Intereses del autor ({f}):", ui.BOLD))
+    for area in pipeline.interest_areas():
+        print(f"  - {area}")
+    if not sys.stdin.isatty() and read is input:
+        return
+    first = read("\n¿Reemplazarlos? Escribí un área por línea y una línea vacía para "
+                 "terminar (Enter directo = dejarlos así; también podés editar el archivo): ").strip()
+    if not first:
+        return
+    areas = [first]
+    while (line := read("  + ").strip()):
+        areas.append(line)
+    header = [ln for ln in pipeline.INTERESTS_EXAMPLE.read_text(encoding="utf-8").splitlines()
+              if ln.startswith("#")]
+    f.write_text("\n".join(header + areas) + "\n", encoding="utf-8")
+    print(ui.c(f"Guardados {len(areas)} intereses en {f.name}.", ui.GREEN))
+
+
 def pick_pair(prov: str) -> tuple[str, str]:
     """Ask for a provider's PRO/FLASH pair.
 
@@ -429,6 +453,7 @@ def main() -> int:
     ui.log(f"[modelos] {llm.describe()}")
 
     if args.setup:
+        edit_interests()
         import scrape_corpus
         scrape_corpus.main()
         print(style.build_guide(refresh=True)[:1200])

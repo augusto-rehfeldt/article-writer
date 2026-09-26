@@ -12,3 +12,4 @@ __pycache__/
 .crush/
 corpus_en/
 .unsnooze/
+interests.txt

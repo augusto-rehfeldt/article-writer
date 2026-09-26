@@ -546,7 +546,15 @@ python test_article_writer.py               # self-check, no network, no API
   `publish.publish_run()` writes `09_publicado.json` as the receipt that stops a
   resumed or looping run from posting the same article twice.
 - `pipeline.already_written()` feeds past run titles back into `TOPIC_PROMPT`. Without
-  it a continuous run rediscovers the same three topics forever.
+  it a continuous run rediscovers the same three topics forever. The twelve newest go
+  in a separate `{recent}` list so the `written[:3000]` cut can never drop them.
+- **Interests are a file, not a constant.** `interests.txt` (personal, gitignored) or
+  the shipped `interests.example.txt`, one area per line; `--setup` copies the example
+  and offers to replace it (`main.edit_interests`). `pick_topic` samples `TOPIC_AREAS`
+  (4) areas per round and queries the news on each area's first term
+  (`_area_query`): handed the whole list and fixed economy headlines, PRO proposed
+  political economy every single time. The prompt caps Marxism/value-critique at one
+  lens in one topic, and `auto` takes a random topic without listing the five.
 
 ## Detector calibration (measured, do not re-derive)
 

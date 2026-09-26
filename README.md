@@ -9,12 +9,13 @@ final revisada, con bibliografía real y verificada, y pasada por detectores de 
 ```bash
 pip install -r requirements.txt
 cp .env.example .env             # y poné tu clave en AW_API_KEY
-python main.py --setup           # baja el corpus de referencia y construye la guía de estilo
+python main.py --setup           # tus intereses, el corpus de referencia y la guía de estilo
 python ingest_facultad.py        # opcional: suma tus trabajos de facultad al corpus
 python main.py --refresh-style   # y reconstruí la guía con el corpus ampliado
 ```
 
-`--setup` descarga los 16 artículos de referencia a `corpus/`, mide la huella
+`--setup` primero te muestra tus intereses (ver abajo) y te deja reescribirlos; después
+descarga los 16 artículos de referencia a `corpus/`, mide la huella
 estilométrica del autor (`style_fingerprint.json`) y hace que el modelo PRO escriba
 la guía de estilo operativa (`style_guide.md`). Se corre una sola vez.
 
@@ -28,6 +29,22 @@ desgrabación. Con `--dry-run` ves la clasificación sin escribir nada.
 `corpus_facultad/` es **solo referencia de estilo**: nunca entra en la bibliografía ni
 se cita. La bibliografía sale de los conectores online y de `library/`, que son
 directorios distintos a propósito.
+
+### Intereses
+
+Los temas salen de `interests.txt`: un área por línea, las líneas con `#` se ignoran.
+Es personal y no se sube al repositorio; un clon nuevo no lo tiene, así que el primer
+`--setup` copia `interests.example.txt` (la lista del autor, como ejemplo) y te
+pregunta si querés reemplazarla. Escribís un área por línea y una línea vacía para
+terminar; Enter directo la deja como está. También podés editar el archivo a mano en
+cualquier momento, y `--setup` vuelve a ofrecerlo cada vez que lo corras.
+
+Cada ronda de temas sortea cuatro áreas de esa lista, busca novedades de esas áreas
+(el primer término de cada línea es la consulta) y le pide a PRO cinco temas de áreas
+distintas entre sí, sin repetir el asunto de ningún artículo ya escrito (los doce más
+recientes van aparte, así nunca se pierden por recorte). La economía política puede ser
+una lente, no el eje de todo: un artículo sobre dinosaurios o sobre aviones vale por sí
+mismo.
 
 ## Uso
 
@@ -67,7 +84,9 @@ de estilo genéricas.
 
 ### Modos
 
-- `auto` — elige tema, investiga, escribe, revisa y aprueba sin intervención.
+- `auto` — elige tema, investiga, escribe, revisa y aprueba sin intervención. No
+  muestra la lista de temas propuestos y toma uno al azar (siempre el primero era
+  siempre la idea más previsible del modelo).
 - `asistido` — te consulta en cuatro puntos: elección del tema, esquema, aplicación
   de las correcciones de la revisión, y aprobación final.
 
@@ -186,9 +205,19 @@ no garantiza que otro detector acepte el texto ni que sus afirmaciones sean corr
 
 | Rol | Modelo | Para qué |
 |---|---|---|
-| PRO | `qwen3.8-max` | tema, auditoría del esquema, revisión de pares, aprobación final |
-| FLASH | `deepseek-v4-pro-0813` | consultas, esquema, redacción, reescritura |
-| Jueces | `glm-5.2`, `kimi-k3`, `minimax-m3` | detección cruzada de texto generado |
+| PRO | el del proveedor principal | tema, auditoría del esquema, revisión, correcciones, aprobación final |
+| FLASH | el del proveedor principal | consultas, esquema, redacción, reescritura |
+| Jueces | PRO y FLASH | detección de texto generado |
+
+Cada respaldo de la cadena contesta con sus propios modelos (`--models`, `AW_MODELS`):
+
+| Proveedor | PRO / FLASH por defecto |
+|---|---|
+| `claude` | `claude-opus-5-5` / `sonnet` |
+| `hyper`, `go` | `qwen3.8-flash` / `deepseek-v4.1-flash` |
+| `zen` | `glm-5.3-flash` / `deepseek-v4.1-flash` |
+| `grok` | `grok-4` / `grok-4-fast` |
+| `oauth` | `gpt-6-sol` / `gpt-6-luna` |
 
 Se cambian por `.env` (`AW_BACKEND`, `AW_MODEL_PRO`, `AW_MODEL_FLASH`,
 `AW_MODEL_JUDGES`), por banderas (`--provider/--backups/--pro/--flash`) o en el

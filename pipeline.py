@@ -14,6 +14,7 @@ import datetime as dt
 import json
 import os
 import pathlib
+import random
 import re
 import textwrap
 import unicodedata
@@ -110,39 +111,35 @@ BYLINE = os.environ.get("AW_FIRMA", "Solaris")
 # `AW_BORRADOR=pro` or `--drafter pro` buys that at PRO prices.
 DRAFT_ROLE = os.environ.get("AW_BORRADOR", "flash").strip().lower()
 
-# The list is read as a ranking: the topic picker leans on whatever comes first,
-# so science fiction sits at the head and everything else follows.
-INTERESTS = (
-    "EJE PREFERENTE — ciencia ficción como forma de pensamiento social: utopía y "
-    "distopía, primer contacto, ciencia ficción evolutiva, Le Guin, Dick, Lem, "
-    "Strugatski, Ballard, Butler, Stapledon, Cixin Liu, cyberpunk, aceleracionismo, "
-    "imaginarios del futuro y del fin del mundo, la novela como experimento mental "
-    "sobre el valor, el trabajo y lo humano; "
-    "historia alternativa y ucronía: puntos de divergencia, historia contrafáctica, "
-    "contingencia y necesidad en el proceso histórico, el uso del «qué habría pasado si» "
-    "como crítica del determinismo y de la naturalización del presente; "
-    "wertkritik y crítica del valor (Kurz, Postone, Jappe, Scholz, Trenkle); "
-    "crítica de la economía política y crítica del capitalismo; crítica del trabajo y del "
-    "trabajo abstracto; ley de la tendencia decreciente de la tasa de ganancia; "
-    "teoría del fetichismo y de la forma-valor; marxismo y psicoanálisis lacaniano "
-    "(Lacan, Žižek), Mark Fisher y el realismo capitalista; "
-    "cibernética y planificación económica; economía política de América Latina y Argentina; "
-    "crítica política argentina y mundial; historia del socialismo real; teoría crítica; "
-    "datos económicos y análisis cuantitativo; ecología política y crisis climática; "
-    "lingüística; paradojas lógicas y semánticas; "
-    "filosofía de la mente: conciencia, qualia, problema difícil, identidad personal, "
-    "preguntas sobre la existencia y sobre qué es lo humano; "
-    "ideología y cultura popular; videojuegos, sobre todo de aventura, sigilo y mundo abierto; "
-    "inteligencia artificial y automatización; "
-    "astronáutica, astrofísica, vuelo espacial, naves generacionales, viaje interestelar, "
-    "colonización del espacio, paradoja de Fermi, vida extraterrestre y astrobiología; "
-    "aviación e historia de la aviación, aviones militares y civiles; "
-    "buques, historia naval y poder marítimo; equipamiento y tecnología militar; "
-    "guerras mundiales, conflictos contemporáneos, historia moderna y contemporánea "
-    "(siglos XIX y XX); "
-    "evolución, biología evolutiva, evolución especulativa (spec evo), animales, dinosaurios "
-    "y paleontología"
-)
+# The author's interests live in a plain-text file, one area per line, so a fresh
+# clone can set its own at `--setup`: interests.txt is personal (gitignored), the
+# example ships with the repo and is the fallback.
+INTERESTS_FILE = ROOT / "interests.txt"
+INTERESTS_EXAMPLE = ROOT / "interests.example.txt"
+
+
+def interest_areas() -> list[str]:
+    """The author's areas: interests.txt, else the shipped example. `#` = comment."""
+    for f in (INTERESTS_FILE, INTERESTS_EXAMPLE):
+        if f.exists():
+            areas = [ln.strip() for ln in f.read_text(encoding="utf-8").splitlines()
+                     if ln.strip() and not ln.lstrip().startswith("#")]
+            if areas:
+                return areas
+    return []
+
+
+def interests_text(areas: list[str] | None = None) -> str:
+    return "; ".join(areas if areas is not None else interest_areas())
+
+
+TOPIC_AREAS = 4  # areas sampled per topic round
+
+
+def _area_query(area: str) -> str:
+    """The news query for an area: its first term («astronáutica, astrofísica…» ->
+    «astronáutica»; «filosofía de la mente: conciencia…» -> «filosofía de la mente»)."""
+    return re.split(r"[,:;(]", area, 1)[0].strip()[:60]
 
 # Every drafting and revision prompt inherits this; APA 7 is a hard requirement.
 # Article language. "es" is the default and the only calibrated one: the corpus,
@@ -258,14 +255,27 @@ TOPIC_PROMPT = """HOY ES {hoy}. Todo lo que digas sobre la coyuntura tiene que \
 referirse a este presente, no al de tu entrenamiento: si no lo ves en los titulares \
 de abajo, no lo des por cierto.
 
-Sos el editor de una revista de teoría social crítica en español. \
-Tenés que proponer temas de artículo para un autor cuyo campo es:
+Sos el editor de una revista de ensayo en español, curiosa y variada. \
+El autor tiene muchos intereses; para ESTE número, trabajá sobre estas áreas \
+(elegidas al azar entre las suyas, para que la revista no gire siempre sobre lo mismo):
 
 {interests}
 
-Ya escribió sobre: {written}.
-No repitas esos temas; buscá ángulos nuevos, o discusiones internas a esas teorías, \
-o problemas abiertos, o cruces con la coyuntura.
+Sus últimos artículos fueron (el primero es el más reciente):
+{recent}
+
+Otros títulos que ya escribió: {written}.
+
+REGLAS DE VARIEDAD (obligatorias):
+- Ningún tema puede retomar el asunto, la tesis o el ángulo de un artículo ya escrito, \
+aunque cambie el título.
+- Los 5 temas tienen que ser de áreas distintas entre sí; cada área de arriba puede \
+aparecer como mucho en un tema.
+- La economía política, la crítica del valor y el marxismo pueden ser, como mucho, \
+una lente en UN tema, no el eje de todos. Un artículo sobre dinosaurios, aviones, \
+lenguas o videojuegos vale por sí mismo: no hace falta convertirlo en crítica del capital.
+- Sé creativo: preferí preguntas raras, precisas y sorprendentes a los panoramas \
+previsibles.
 
 Titulares de las últimas semanas (para anclar en la coyuntura; la fecha va delante):
 {news}
@@ -274,7 +284,9 @@ Titulares de las últimas semanas (para anclar en la coyuntura; la fecha va dela
 
 Proponé 5 temas. Cada uno debe: (a) ser discutible, no un panorama descriptivo; \
 (b) tener una hipótesis fuerte y arriesgada, susceptible de ser falsada; \
-(c) apoyarse en literatura académica realmente existente; (d) tener una razón de por qué AHORA.
+(c) apoyarse en literatura académica realmente existente; (d) tener una razón de por qué \
+AHORA (un titular, un aniversario, un hallazgo, una publicación; no tiene que ser coyuntura \
+económica).
 
 Devolvé JSON:
 {{"temas": [{{"titulo": "...", "pregunta": "¿...?", "hipotesis": "...", \
@@ -332,30 +344,39 @@ def pick_topic(run: Run) -> dict:
         return cached
     if run.exact_topic and run.brief:
         return _develop_topic(run)
-    run.log("[tema] sondeando coyuntura…")
+    # A few areas per run, not the whole list: handed everything, the model gravitates
+    # to the same political-economy corner every time.
+    areas = interest_areas()
+    focus = random.sample(areas, min(TOPIC_AREAS, len(areas)))
+    run.log(f"[tema] áreas de este número: {'; '.join(_area_query(a) for a in focus)}")
+    run.log("[tema] sondeando novedades…")
     news = []
-    for q in ("crisis económica", "desigualdad inflación", "inteligencia artificial trabajo",
-              "conflicto social protesta"):
-        news += research.google_news(q, 6, "es", days=21)
-        news += research.google_news(q, 4, "en", days=21)
+    for q in [_area_query(a) for a in focus] + ["Argentina"]:
+        news += research.google_news(q, 5, "es", days=30)
+        news += research.google_news(q, 4, "en", days=30)
     news.sort(key=lambda n: n.date, reverse=True)
     headlines = "\n".join(f"- {n.date or 's/f'} · {n.title} ({n.venue})"
                           for n in news[:45]) or "(sin datos)"
-    # Own past runs first: in continuous mode the acute risk is repeating itself,
-    # and `written` gets truncated before it reaches the prompt.
-    written = ", ".join(already_written()
-                        + [p.stem.replace("-", " ") for p in style.CORPUS.glob("*.md")])
+    # Own past runs first: in continuous mode the acute risk is repeating itself.
+    # The most recent ones are listed apart so a truncated `written` cannot drop them.
+    past = already_written()
+    recent = "\n".join(f"- {t}" for t in past[:12]) or "(ninguno)"
+    written = ", ".join(past[12:] + [p.stem.replace("-", " ") for p in style.CORPUS.glob("*.md")])
     brief_block = (f"El autor pidió específicamente trabajar sobre: «{run.brief}». "
                    "Todos los temas propuestos deben desarrollar ESE pedido desde ángulos distintos."
                    ) if run.brief else ""
     data = llm.chat_json(llm.PRO, TOPIC_PROMPT.format(
-        hoy=hoy(), interests=INTERESTS, written=written[:1500], news=headlines,
-        brief_block=brief_block) + _lang(), temperature=0.95)
+        hoy=hoy(), interests="\n".join(f"- {a}" for a in focus), recent=recent,
+        written=written[:3000], news=headlines,
+        brief_block=brief_block) + _lang(), temperature=1.0)
     temas = data.get("temas", [])
-    for i, t in enumerate(temas, 1):
+    # In auto mode nobody picks, so listing them is noise; and it takes one at random,
+    # since "always the first" is always the model's most predictable idea.
+    for i, t in enumerate(temas if run.mode != "auto" else [], 1):
         run.log(f"\n  [{i}] {t['titulo']}\n      hipótesis: {t['hipotesis']}\n"
                 f"      ahora: {t.get('por_que_ahora','')}")
-    choice = run.ask(f"Elegí tema [1-{len(temas)}] (Enter = 1, o escribí tu propio título):", "1")
+    default = str(random.randint(1, len(temas))) if run.mode == "auto" and temas else "1"
+    choice = run.ask(f"Elegí tema [1-{len(temas)}] (Enter = 1, o escribí tu propio título):", default)
     if choice.isdigit() and 1 <= int(choice) <= len(temas):
         topic = temas[int(choice) - 1]
     else:
@@ -372,7 +393,7 @@ def _develop_topic(run: Run) -> dict:
     news = (research.google_news(run.brief, 8, "es", days=45)
             + research.google_news(run.brief, 5, "en", days=45))
     topic = llm.chat_json(llm.PRO, DEVELOP_PROMPT.format(
-        hoy=hoy(), brief=run.brief, interests=INTERESTS,
+        hoy=hoy(), brief=run.brief, interests=interests_text(),
         news="\n".join(f"- {n.date or 's/f'} · {n.title} ({n.venue})"
                        for n in news[:25]) or "(sin datos)") + _lang(),
         temperature=0.85)
