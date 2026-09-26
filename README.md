@@ -59,6 +59,26 @@ python main.py --detect texto.md                # solo pasar los detectores de I
 python main.py --english --fmt medium            # artículo y aparato en inglés
 ```
 
+### Banderas
+
+| Bandera | Qué hace |
+|---|---|
+| `--fmt` | extensión y género (tabla de abajo) |
+| `--mode auto\|assisted` | de punta a punta, o con consultas en tema, esquema, correcciones y aprobación |
+| `--topic`, `--exact-topic` | pista de tema; con `--exact-topic`, ese tema y ningún otro |
+| `--resume [carpeta]` | retoma una corrida; sin carpeta, la última |
+| `--no-library` | no frena a pedir libros faltantes |
+| `--rounds N` | rondas de revisión de PRO |
+| `--detector-rounds N`, `--threshold N`, `--no-detector` | reescrituras contra los detectores, puntaje máximo tolerado (0 humano, 100 máquina), o sin detectores |
+| `--drafter pro\|flash` | quién redacta las secciones (FLASH por defecto; PRO lee más humano y cuesta más) |
+| `--english` | artículo en inglés, calibrado contra `corpus_en/` |
+| `--setup`, `--refresh-style` | intereses + corpus + guía de estilo; o solo reconstruir la guía |
+| `--detect archivo.md` | solo los detectores sobre un archivo |
+| `--publish no\|draft\|auto\|live` | subir como borrador, en vivo si aprueba y pasa el umbral, o siempre en vivo |
+| `--provider`, `--backups A,B`, `--pro`, `--flash`, `--models` | cadena de proveedores y modelos (ver Modelos) |
+| `--wizard` | el asistente pregunta aunque haya otras banderas |
+| `--continuous N`, `--every MIN` | N artículos seguidos eligiendo temas solo (0 = sin fin), con pausa entre uno y otro |
+
 **Vos ponés el tema.** Con `--topic` das una pista y el sistema te propone cinco ángulos
 para elegir. Con `--topic --exact-topic` escribe sobre eso y nada más: PRO solo le agrega
 hipótesis, pregunta y plan bibliográfico. En modo asistido podés ajustar la hipótesis

@@ -165,7 +165,7 @@ PROVIDERS: dict[str, dict] = {
     "oauth":  {"label": "openai-oauth — proxy local con tu cuenta de ChatGPT",
                "pro": "gpt-6-sol", "flash": "gpt-6-luna",
                "exclusive": True, "alias": {},
-               "models": ["gpt-6-sol", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4", "gpt-5.4-mini",
+               "models": ["gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4", "gpt-5.4-mini",
                           "o3", "o3-mini", "o4-mini"],
                "base_url": _OAUTH_BASE_URL},
 }

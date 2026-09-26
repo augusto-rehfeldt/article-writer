@@ -393,7 +393,7 @@ def main() -> int:
                    help="write the article in English (detectors and tell lists use the "
                         "English corpus and guide)")
     p.add_argument("--setup", action="store_true",
-                   help="download the corpus and build the style guide")
+                   help="set your interests, download the corpus and build the style guide")
     p.add_argument("--refresh-style", action="store_true", help="rebuild the style guide")
     p.add_argument("--detect", default="", help="only run the detectors over a file")
     p.add_argument("--publish", dest="publicar", default="no",
@@ -409,7 +409,7 @@ def main() -> int:
     p.add_argument("--flash", default="", metavar="MODEL",
                    help="FLASH role model (outline, drafting, rewriting)")
     p.add_argument("--models", dest="modelos", default="", metavar="PROV:PRO/FLASH,...",
-                   help="backup models, e.g. 'zen:glm-5.2/deepseek-v4-pro,go:qwen3.8-max'")
+                   help="backup models, e.g. 'zen:glm-5.3-flash/deepseek-v4.1-flash,go:qwen3.8-flash'")
     p.add_argument("--wizard", action="store_true",
                    help="ask for provider, models and format even when other flags are given")
     p.add_argument("--continuous", dest="continuo", type=int, default=None, metavar="N",
