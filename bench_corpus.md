@@ -1,0 +1,30 @@
+# De la tendencia decreciente de la tasa de ganancia
+
+URL: https://revistalacueva.wordpress.com/2017/03/15/de-la-tendencia-decreciente-de-la-tasa-de-ganancia/
+Fecha: 2017-03-15T21:03:03+00:00
+
+En esta extensa nota, desarrollaré la ley económica marxista de la tendencia decreciente de la tasa de ganancia.
+
+Aquí les dejo un enlace para la versión en formato pdf: https://goo.gl/vYtyhr.
+
+De la tendencia decreciente de la tasa de ganancia
+
+Como punto de partida: la ley del valor, el trabajo y sus formas
+
+La ley del valor es un concepto central en la crítica de la economía política burguesa llevada a cabo por Karl Marx. Se refiere a un principio normativo de la ciencia económica, un principio normativo del intercambio de los productos generados por el trabajo humano. La ley del valor parte del hecho de que la sustancia común entre las diferentes mercancías en tanto productos sociales (que expresan una relación social) es el trabajo humano. La relación de los valores de cambio de dichos productos en el comercio (relación por lo general expresada por su precio en dinero) está determinada por la cantidad de trabajo humano social (simple o complejo) medido temporalmente y empleado directa o indirectamente para fabricarlos o producirlos, lo que Marx también llamó el tiempo de trabajo socialmente necesario para posibilitar la reproducción de tal trabajo en un futuro.
+
+Esta ley parte de la diferenciación del trabajo humano con el de otros animales. Harry Braverman, en Trabajo y capital monopolista enuncia que el trabajo propiamente humano se entiende como la alteración consciente y con un sentido de los materiales de la naturaleza para mejorar su utilidad. Esta es una diferencia fundamental del ser humano con respecto a cualquier otro animal, es una diferencia cualitativa, aunque se aclara que es posible que algunos animales, por ejemplo, bajo ciertas condiciones inventen nuevas herramientas tal como lo hace un humano, la diferencia entre el trabajo humano y del de todo el resto del mundo animal es tan grande que puede continuarse en la dicotomía entre “instinto” y “sentido”. Según Karl Marx:
+
+“Presuponemos el trabajo en una forma que lo hace exclusivamente humano (…) lo que distingue al peor de los arquitectos de la mejor de las abejas estriba en que el arquitecto levanta su estructura en la imaginación antes de erigirla en la realidad (…) [el trabajador] realiza un propósito propio que rige su modus operandi y al cual debe subordinar su voluntad.” Páginas 61 y 62 de la obra ya citada en el anterior párrafo. En El Capital la cita refiere al primer tomo, sección III, capítulo V (proceso de trabajo y proceso de valorización), segundo párrafo.
+
+Características intrínsecas del trabajo son producir, crear y transformar, pero a pesar de que el ser humano transforme la naturaleza, el trabajo no es naturalmente valioso, sino que produce valor en tanto y en cuanto la organización social en la cual es empleado considere valioso al producto de la labor en cuestión. De la misma forma, el hecho de que el valor de las mercancías se mida por el tiempo de trabajo social empleado en ellas se debe a determinada estructura social y a las relaciones sociales de producción de esta estructura. Que una cantidad “x” de una mercancía A se iguale con una cantidad “y” de una mercancía B por medio de la cantidad de trabajo socialmente necesario no es prueba de ninguna ley natural que precede a las sociedades humanas modernas.
+
+“En el caso del trabajo social, el «valor» explica por qué los zapatos cuestan más que las camisas, las casas cuestan más que los automóviles y el vino cuesta más que el agua. Esas diferencias de valor entre distintas mercancías no tienen nada que ver con su carácter como valores de uso (aparte del simple hecho de que todas deben ser útiles para alguien en algún lugar) y con lo que sí tienen que ver es con el trabajo social involucrado en su producción.” De Diecisiete contradicciones y el fin del capitalismo, David Harvey, página 41. 2014.
+
+El intercambio de mercancías, orbitando alrededor de su tiempo medio de producción no es más que una forma de organizar la vida social.
+
+La faceta del trabajo descrita en los anteriores párrafos, puramente cuantitativa, es trabajo abstracto, trabajo no destinado a la satisfacción de necesidad alguna sino a la fabricación de valores de cambio, mercancías; bienes o servicios cuyo fin último es ser vendidos (intercambiados). El trabajo pierde parcial o totalmente (según cada modo de producción) la primacía de su carácter cualitativo, y sólo se analiza cuantitativamente. En este aspecto, el valor está determinado por la magnitud de gasto psíquico o físico de energía de quien realiza una labor productiva, reflejado en el tiempo de trabajo.
+
+Al analizar el intercambio de mercancías en una estructura social que funcione tal manera que este intercambio tenga como base el tiempo que toma realizar un trabajo, ¿cómo se mide tal tiempo de trabajo? Partiendo de una unidad básica: el trabajo simple. Friedrich Engels escribirá en La revolución de la ciencia de Eugenio Dühring (mejor conocido como “Anti-Dühring”) que “Este trabajo (…) es gasto de simple fuerza de trabajo, poseída en media por todo hombre normal, sin especial desarrollo, en su organismo somático…” [Sección II, capítulo VI (trabajo simple y trabajo compuesto)]. El trabajo simple sin embargo sólo reviste una importancia en tanto y en cuanto es una medida cualitativa y temporal, ya que cualquier tipo de trabajo humano requiere un mínimo de destreza y conocimiento de la actividad específica que ya lo hace superior al trabajo simple propuesto por Engels. Todo trabajo humano es de hecho trabajo complejo:
+
+“El trabajo complicado se considera simplemente como trabajo simple potenciado o, más bien, multiplicado, de tal modo que un quantum menor de trabajo complicado equivale a un quantum mayor de trabajo simple. La experiencia enseña que esta reducción se practica constantemente. Aunque una mercancía sea producto del trabajo m

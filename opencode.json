@@ -1,0 +1,31 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": ["CLAUDE.md"],
+  "provider": {
+    "hyper": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "hyper.charm.land",
+      "options": {
+        "baseURL": "https://hyper.charm.land/v1",
+        "apiKey": "{env:AW_API_KEY}"
+      },
+      "models": {
+        "deepseek-v4-pro-0813": { "name": "DeepSeek v4 Pro (redacción)" },
+        "deepseek-v4-flash-0731": { "name": "DeepSeek v4 Flash" },
+        "glm-5.2": { "name": "GLM 5.2 (juez de detección)" },
+        "glm-5.3-flash": { "name": "GLM 5.3 Flash" },
+        "kimi-k3": { "name": "Kimi K3 (juez de detección)" },
+        "qwen3.8-max": { "name": "Qwen 3.8 Max (tema, revisión, aprobación)" }
+      }
+    }
+  },
+  "model": "hyper/qwen3.8-max",
+  "agent": {
+    "redactor": {
+      "description": "Redacción pura: sin herramientas, sin sesión de trabajo.",
+      "mode": "primary",
+      "tools": { "*": false },
+      "prompt": "Sos un escritor. Respondés únicamente con el texto pedido, sin preámbulo, sin preguntas y sin usar herramientas."
+    }
+  }
+}

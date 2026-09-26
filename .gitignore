@@ -1,0 +1,14 @@
+.env
+.cache/
+output/
+library/
+corpus/
+corpus_facultad/
+style_guide.md
+style_fingerprint.json
+bench/
+__pycache__/
+.pytest_cache/
+.crush/
+corpus_en/
+.unsnooze/

@@ -1,0 +1,110 @@
+{
+  "sentences": 39263,
+  "words": 730928,
+  "sent_len_mean": 18.42,
+  "sent_len_sd": 17.77,
+  "burstiness": 0.964,
+  "sent_len_p10": 2.0,
+  "sent_len_p90": 41.0,
+  "long_sent_ratio": 0.074,
+  "short_sent_ratio": 0.397,
+  "para_len_mean": 190.5,
+  "ttr": 0.0499,
+  "per_1k": {
+    "«": 0.03,
+    "“": 2.4,
+    ";": 4.92,
+    ":": 3.29,
+    "—": 1.27,
+    "(": 6.05,
+    "¿": 0.01,
+    "!": 0.47,
+    "[": 1.22
+  },
+  "signature_phrases": [
+    "the leisure class",
+    "the fact that",
+    "the united states",
+    "the same time",
+    "at the same time",
+    "the other hand",
+    "all male female",
+    "on the other hand",
+    "habits of thought",
+    "scheme of life",
+    "the nature of",
+    "in the case of",
+    "of the community",
+    "that is to say",
+    "the development of",
+    "point of view",
+    "that there is",
+    "on the part of",
+    "one of the most",
+    "of the leisure",
+    "members of the",
+    "of natural selection",
+    "of the leisure class",
+    "as well as the",
+    "of the individual",
+    "of conspicuous waste",
+    "knowledge of the",
+    "the number of",
+    "the theory of",
+    "the growth of",
+    "in connection with",
+    "men and women",
+    "the reparation commission",
+    "for the purpose",
+    "of the future",
+    "the habits of",
+    "as regards the",
+    "the process of",
+    "the purpose of",
+    "the course of"
+  ],
+  "ranges": {
+    "burstiness": {
+      "p05": 0.4286,
+      "p25": 0.541,
+      "p50": 0.647,
+      "p95": 1.0006,
+      "n": 563
+    },
+    "sent_len_mean": {
+      "p05": 13.682,
+      "p25": 20.28,
+      "p50": 25.11,
+      "p95": 37.776,
+      "n": 563
+    },
+    "long_sent_ratio": {
+      "p05": 0.0,
+      "p25": 0.045,
+      "p50": 0.103,
+      "p95": 0.3057,
+      "n": 563
+    },
+    "short_sent_ratio": {
+      "p05": 0.03,
+      "p25": 0.093,
+      "p50": 0.167,
+      "p95": 0.4527,
+      "n": 563
+    },
+    "ttr": {
+      "p05": 0.3431,
+      "p25": 0.376,
+      "p50": 0.4119,
+      "p95": 0.4976,
+      "n": 563
+    },
+    "para_cv": {
+      "p05": 0.0,
+      "p25": 0.0,
+      "p50": 0.0,
+      "p95": 0.6182,
+      "n": 480
+    }
+  }
+}

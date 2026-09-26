@@ -1,0 +1,9 @@
+openai>=1.40
+requests
+beautifulsoup4
+lxml
+python-dotenv
+pypdf
+EbookLib
+python-docx
+selenium
