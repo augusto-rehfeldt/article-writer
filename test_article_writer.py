@@ -386,17 +386,40 @@ def test_chunks_splits_a_long_section_by_subsection() -> None:
     assert pipeline._chunks({"n": 1, "palabras": 6000}) == [("01", "", 6000, "")]
 
 
-def test_judges_are_exactly_the_configured_pro_and_flash() -> None:
-    """The gate is judged by the models the user picked, never by a stand-in."""
+def test_judges_are_the_fixed_panel_on_their_own_providers() -> None:
+    """opus 5.5 and gpt-6-astra judge whatever the chain; each goes only to its owner."""
     import llm
     saved = (llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES)
     try:
         llm.configure(["hyper"], pro="qwen3.7-max", flash="deepseek-v4-flash-0731")
-        assert llm.JUDGES == ["qwen3.7-max", "deepseek-v4-flash-0731"]
-        llm.configure(["claude"])
-        assert llm.JUDGES == [llm.PRO, llm.FLASH]
+        assert llm.JUDGES == ["claude-opus-5-5", "gpt-6-astra"]
+        assert [b for b in llm.PROVIDERS if llm._serves(b, "gpt-6-astra")] == ["oauth"]
+        assert [b for b in llm.PROVIDERS if llm._serves(b, "claude-opus-5-5")] == ["claude"]
     finally:
         llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES = saved
+
+
+def test_failed_judges_are_skipped_and_all_failing_falls_back_to_the_drafter() -> None:
+    import llm
+    old, dead = llm.chat_json, set()
+
+    def fake(m, p, *a, **kw):
+        if m in dead:
+            raise RuntimeError("caído")
+        return {"ai_probability": 40, "veredicto": "ia"}
+    llm.chat_json = fake
+    try:
+        dead = {"gpt-6-astra"}
+        got = humanize.llm_judges("texto", log=lambda *_: None)
+        assert [r["model"] for r in got] == ["claude-opus-5-5"], got
+        dead = set(llm.JUDGES)
+        got = humanize.llm_judges("texto", log=lambda *_: None)
+        drafter = llm.PRO if pipeline.DRAFT_ROLE == "pro" else llm.FLASH
+        assert [r["model"] for r in got] == [drafter], got
+        # an explicit panel (the benches) never gets a stand-in
+        assert humanize.llm_judges("texto", ["gpt-6-astra"], lambda *_: None) == []
+    finally:
+        llm.chat_json = old
 
 
 def test_continuous_mode_resumes_a_crashed_run_once() -> None:
@@ -439,7 +462,6 @@ def test_chain_translates_roles_into_each_provider_catalogue() -> None:
         assert llm._as("claude", llm.PRO) == "claude-opus-5-5"
         assert llm._as("hyper", llm.PRO) == "qwen3.8-flash"
         assert llm._as("go", llm.FLASH) == "deepseek-v4.1-flash"
-        # judges ride the same PRO/FLASH pair, so claude answers for them here
         assert llm._serves("claude", llm.PRO) and llm._serves("claude", llm.FLASH)
         assert not llm._serves("claude", "glm-5.2")
         assert llm._serves("hyper", "glm-5.2")
@@ -929,7 +951,7 @@ def test_judges_never_end_up_empty() -> None:
     saved = (llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES)
     try:
         llm.configure(["zen"])
-        assert llm.JUDGES == [llm.PRO, llm.FLASH] and len(llm.JUDGES) == 2
+        assert llm.JUDGES == llm.JUDGE_MODELS and len(llm.JUDGES) == 2
     finally:
         llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES = saved
 
@@ -1248,6 +1270,53 @@ def test_grok_is_a_first_class_openai_compatible_provider() -> None:
         assert llm._as("grok", llm.PRO) == llm.PROVIDERS["grok"]["pro"]
     finally:
         llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES = saved
+
+
+def test_g4f_is_a_keyless_local_gpt4free_link() -> None:
+    """gpt4free's `g4f api` server: ai-suite's gpt4free provider, no key by default.
+    g4f hands any other bearer to its backends as their key, so hyper's AW_API_KEY
+    must never ride along; G4F_API_KEY (the server's own) is sent when set."""
+    spec = llm.PROVIDERS["g4f"]
+    assert spec["base_url"] == "http://127.0.0.1:1337/v1"
+    assert llm.SHARED["g4f"] == "gpt4free"
+    assert spec["pro"] in spec["models"] and spec["flash"] in spec["models"]
+
+    class Resp:
+        def json(self):
+            return {"data": [{"id": "deepseek-v4-pro"}, {"id": "flux", "image": True},
+                             {"id": "PollinationsAI", "provider": True}]}
+    import requests
+    saved_get = requests.get
+    requests.get = lambda *a, **kw: Resp()
+    try:
+        assert llm._live_models("g4f") == ["deepseek-v4-pro"]
+    finally:
+        requests.get = saved_get
+
+    seen = []
+
+    class Service:
+        def generate_content(self, *a, **kw):
+            return "texto"
+    saved_shared = llm.shared_service
+    saved_env = {k: os.environ.pop(k, None) for k in ("G4F_API_KEY", "AW_API_KEY")}
+    llm.shared_service = lambda provider, overrides: (seen.append((provider, overrides)), Service())[1]
+    try:
+        os.environ["AW_API_KEY"] = "hyper-key"
+        assert llm._send("g4f", "glm-5.3", "hola", None, temperature=None,
+                         max_tokens=None, retries=0) == "texto"
+        os.environ["G4F_API_KEY"] = "server-key"
+        llm._send("g4f", "glm-5.3", "hola", None, temperature=None, max_tokens=None, retries=0)
+    finally:
+        llm.shared_service = saved_shared
+        for k, v in saved_env.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+    assert seen[0][0] == "gpt4free"
+    assert seen[0][1]["base_url"] == "http://127.0.0.1:1337/v1"
+    assert "api_key" not in seen[0][1], seen[0][1]
+    assert seen[1][1]["api_key"] == "server-key"
 
 
 def test_go_provider_is_pinned_and_legacy_name_still_works() -> None:

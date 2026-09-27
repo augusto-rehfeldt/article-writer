@@ -3,9 +3,8 @@
 Two roles are used across the pipeline:
   PRO   - topic selection, outline audit, review, final approval (better judgement)
   FLASH - research synthesis, outlining, drafting, rewriting (high volume)
-A third pool (JUDGES) scores whether a text reads as AI-written. Since 2026-08-22
-it is simply PRO and FLASH — the models the user picked — and nothing ever
-substitutes another model behind their back.
+A third pool (JUDGES) scores whether a text reads as AI-written: a fixed panel
+(``JUDGE_MODELS``), falling back to the drafting model when every judge fails.
 
 ``AW_BACKEND`` is an ordered chain, not a single name: ``claude,hyper,go``
 means "Claude Code CLI, and if it fails, hyper, and if that fails too, go".
@@ -137,6 +136,12 @@ ZEN_ALIAS = {"deepseek-v4-pro-0813": "deepseek-v4-pro",
 _GROK_BASE_URL = os.environ.get("AW_GROK_URL", "https://api.x.ai/v1")
 _GROK_MODELS = ["grok-4", "grok-4-fast", "grok-3", "grok-3-mini"]
 
+# gpt4free's local server (`pip install -U "g4f[api]"`, then `g4f api`): free,
+# keyless, g4f's own model names. ai-suite's gpt4free provider serves it.
+_G4F_BASE_URL = os.environ.get("AW_G4F_URL", "http://127.0.0.1:1337/v1")
+_G4F_MODELS = ["deepseek-v4-pro", "deepseek-v4.1-flash", "glm-5.3", "glm-5.3-flash",
+               "kimi-k3", "minimax-m3", "qwen-3.8-2.4t-a95b", "gemini-3.8-flash"]
+
 # exclusive: the provider only serves models from its own catalogue, so a call
 # for a model it does not know skips it and walks on down the chain. That is what
 # keeps the judges off Claude when Claude is doing the writing.
@@ -162,6 +167,12 @@ PROVIDERS: dict[str, dict] = {
                "pro": "grok-4", "flash": "grok-4-fast",
                "exclusive": False, "alias": {}, "models": _GROK_MODELS,
                "base_url": _GROK_BASE_URL, "key_env": "XAI_API_KEY"},
+    "g4f":    {"label": "gpt4free — servidor local `g4f api`, gratis, sin clave",
+               "pro": "deepseek-v4-pro", "flash": "glm-5.3",
+               "exclusive": False, "alias": {}, "models": _G4F_MODELS,
+               # g4f hands any bearer but its own G4F_API_KEY to its backends.
+               "base_url": _G4F_BASE_URL, "key_env": "G4F_API_KEY",
+               "own_key_only": True, "keyless": True},
     "go": {"label": "opencode CLI local — contra opencode-go",
            "pro": "qwen3.8-flash", "flash": "deepseek-v4.1-flash",
            "exclusive": False, "alias": OPENCODE_ALIAS, "models": _HYPER_MODELS},
@@ -235,10 +246,15 @@ PRO = os.environ.get("AW_MODEL_PRO") or PROVIDERS[CHAIN[0]]["pro"]
 FLASH = os.environ.get("AW_MODEL_FLASH") or PROVIDERS[CHAIN[0]]["flash"]
 
 
+# Fixed detector panel since 2026-09-26: opus 5.5 took kimi-k3's seat and gpt-6-astra
+# joined. Each lives on an exclusive provider (claude, oauth), so `_serves` sends it
+# straight there. A judge that fails is skipped; if all fail, `humanize.llm_judges`
+# falls back to the drafting model.
+JUDGE_MODELS = ["claude-opus-5-5", "gpt-6-astra"]
+
+
 def _judges() -> list[str]:
-    # The gate is judged by the very models the user configured, in that order,
-    # and never by a stand-in: evaluation must not steer off PRO/FLASH.
-    return list(dict.fromkeys([PRO, FLASH]))
+    return list(JUDGE_MODELS)
 
 
 JUDGES = _judges()
@@ -267,8 +283,12 @@ def configure(chain: list[str] | None = None, pro: str = "", flash: str = "",
 
 def _serves(backend: str, model: str) -> bool:
     prov = PROVIDERS[backend]
-    return (model in (PRO, FLASH) or not prov["exclusive"]
-            or model in prov["models"])
+    if model in (PRO, FLASH):
+        return True
+    if prov["exclusive"]:
+        return model in prov["models"]
+    # A model an exclusive provider owns (the judges) is not tried on open gateways.
+    return not any(p["exclusive"] and model in p["models"] for p in PROVIDERS.values())
 
 
 def _as(backend: str, model: str) -> str:
@@ -324,7 +344,9 @@ def _live_models(backend: str) -> list[str]:
         r = requests.get(base.rstrip("/") + "/models",
                          headers={"Authorization": f"Bearer {key}"} if key else {},
                          timeout=15)
-        ids = [str(m["id"]) for m in r.json().get("data", []) if m.get("id")]
+        # g4f also lists each of its backends (provider: true) and image models.
+        ids = [str(m["id"]) for m in r.json().get("data", [])
+               if m.get("id") and not m.get("provider") and not m.get("image")]
         skip = spec.get("skip_live")   # families this endpoint serves another way
         return [i for i in ids if not (skip and re.search(skip, i))]
     except Exception:  # noqa: BLE001 - a dead catalogue degrades to the built-in list
@@ -416,7 +438,7 @@ BOOK_WRITER = pathlib.Path(os.environ.get("AW_BOOK_WRITER")
 # article-writer's backend names -> book writer's providers. Custom endpoints from the
 # game's settings ride the generic OpenAI-compatible client ("openrouter").
 SHARED = {"claude": "claude", "hyper": "hyper", "zen": "opencode-zen",
-          "grok": "grok", "go": "opencode-go", "oauth": "openai-oauth"}
+          "grok": "grok", "go": "opencode-go", "oauth": "openai-oauth", "g4f": "gpt4free"}
 
 _services: dict[tuple, Any] = {}
 _services_lock = threading.Lock()
@@ -464,12 +486,14 @@ def _send(backend: str, model: str, prompt: str, system: str | None, *,
         if backend not in ("go", "oauth"):
             # go reads opencode's own login and oauth the local proxy, inside book writer.
             key = _key_for(spec)
-            if not key:
+            # A keyless local server (g4f) with no key of its own gets no bearer at all.
+            if not key and not spec.get("keyless"):
                 # RuntimeError, not SystemExit: this provider may be one link in a
                 # chain, and a missing key here has to let the next one try.
                 raise RuntimeError(f"falta la clave para {backend}: poné "
                                    f"{spec.get('key_env', 'AW_API_KEY')}=sk-... en article-writer/.env")
-            overrides["api_key"] = key
+            if key:
+                overrides["api_key"] = key
     out = shared_service(provider, overrides).generate_content(
         prompt, model=model, system=system, temperature=temperature,
         max_completion_tokens=max_tokens, max_retries=retries, wait_for_limits=wait)

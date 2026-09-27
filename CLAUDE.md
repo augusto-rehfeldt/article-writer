@@ -25,15 +25,20 @@ in English.
   **FLASH** = `deepseek-v4-pro-0813` (queries, outlining, drafting, humanizing rewrites).
   `revise()` moved to PRO on 2026-08-23: FLASH answered a report about invented
   citations by inventing more, and shipped «Now the final section text:» as prose. Since
-  2026-08-22 the detector judges are exactly PRO and FLASH (`llm._judges()`); nothing
-  ever substitutes another model behind the user's back. The old cross-family pool
-  (glm/kimi/minimax) is gone, along with `AW_MODEL_JUDGES`.
+  2026-09-26 the detector judges are a fixed panel, `llm.JUDGE_MODELS` =
+  `claude-opus-5-5` (on `claude`) + `gpt-6-astra` (on `oauth`); `llm._serves` sends a
+  model owned by an exclusive provider only there. A failing judge is skipped; if every
+  judge fails, `humanize.llm_judges` judges with the drafting model (FLASH, or PRO under
+  `DRAFT_ROLE=pro`). An explicit `models=` list (the benches) never gets that stand-in.
+  kimi-k3 is out of both this panel and `bench2.JUDGES`.
 - Providers: `claude`, `hyper`, `zen` (OpenCode Zen, OpenAI-compatible at
   `https://opencode.ai/zen/v1`, key in `OPENCODE_API_KEY`), `grok` (xAI directo,
   OpenAI-compatible at `https://api.x.ai/v1`, key in `XAI_API_KEY`, URL
   override `AW_GROK_URL`), `oauth` (openai-oauth
-  local proxy at `127.0.0.1:10531`, uses your ChatGPT subscription) and the local
-  `opencode` CLI. In any attended run (stdin is a tty, wizard or flags alike),
+  local proxy at `127.0.0.1:10531`, uses your ChatGPT subscription), `g4f`
+  (gpt4free's local `g4f api` server at `127.0.0.1:1337`, URL override `AW_G4F_URL`;
+  keyless, or `G4F_API_KEY` only, because g4f hands any other bearer to its backends)
+  and the local `opencode` CLI. In any attended run (stdin is a tty, wizard or flags alike),
   exhausting the whole chain prompts the user to wait 30s, change provider/model,
   or abort (`llm.INTERACTIVE`, set in `main.main()`, main thread only); `--continuous`
   forces it off because nothing is watching. The change sticks for the rest of the

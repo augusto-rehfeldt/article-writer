@@ -364,10 +364,17 @@ def llm_judges(text: str, models: list[str] | None = None, log=ui.log,
             log(f"  · juez {m} no disponible: {type(e).__name__}")
             return None
 
+    panel = not models
     models = models or llm.JUDGES
     with futures.ThreadPoolExecutor(max_workers=max(1, len(models))) as pool:
         results = list(pool.map(ask, models))
     out = [r for r in results if r]
+    if panel and not out:
+        import pipeline  # lazy: pipeline imports humanize
+        drafter = llm.PRO if pipeline.DRAFT_ROLE == "pro" else llm.FLASH
+        log(f"  · ningún juez respondió; juzga el modelo de redacción ({drafter})")
+        with futures.ThreadPoolExecutor(max_workers=1) as pool:  # worker thread: never prompts
+            out = [r for r in [pool.submit(ask, drafter).result()] if r]
     for r in out:
         log(f"  · juez {r['model']}: {r.get('ai_probability')}% IA "
             f"({r.get('veredicto', r.get('verdict'))})")

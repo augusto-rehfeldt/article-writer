@@ -59,8 +59,11 @@ MODELS = [
 # two Anthropic, one OpenAI, one Chinese-open-weights. kimi-k3 is the cross-family
 # read the 2026-08-22 pool had and the Claude/OpenAI pair does not.
 # gpt-5.6-terra is dropped as a judge (2026-09-25); deepseek-v4.1-flash takes its seat.
-JUDGES = [m for m in MODELS if m[0] in ("opus", "sonnet", "kimi-k3")] + [
-    ("deepseek-v4.1-flash", "hyper", "deepseek-v4.1-flash")]
+# kimi-k3 is dropped too (2026-09-26): opus 5.5 takes its seat, gpt-6-astra joins.
+JUDGES = [m for m in MODELS if m[0] in ("opus", "sonnet")] + [
+    ("deepseek-v4.1-flash", "hyper", "deepseek-v4.1-flash"),
+    ("claude-opus-5-5", "claude", "claude-opus-5-5"),
+    ("gpt-6-astra", "oauth", "gpt-6-astra")]
 WORDS = 1200
 
 TOPIC_ES = ("la automatización del trabajo y lo que le pasa al valor cuando la "
