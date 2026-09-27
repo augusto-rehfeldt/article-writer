@@ -53,22 +53,22 @@ LLM_TELLS = [
 ]
 
 STRUCTURAL_TELLS = [
-    (r"(?m)^\s*[-*•]\s", 0.02, "listas con viñetas (el autor casi no las usa)"),
-    (r"\bEn conclusión\b", 0.0005, "cierre con «En conclusión»"),
-    (r"—", 0.02, "sobreuso de raya (—)"),
-    (r"\b(Primero|Segundo|Tercero),", 0.0008, "enumeración escolar"),
-    (r"(?m)^#{2,}\s", 0.02, "exceso de subtítulos"),
+    (r"(?m)^\s*[-*•]\s", 0.02, "bullet lists (the author almost never uses them)"),
+    (r"\bEn conclusión\b", 0.0005, "closing with «En conclusión»"),
+    (r"—", 0.02, "overuse of em dashes (—)"),
+    (r"\b(Primero|Segundo|Tercero),", 0.0008, "schoolbook enumeration"),
+    (r"(?m)^#{2,}\s", 0.02, "too many subheadings"),
     # Explanatory colons (setup:elaboration) are the single strongest AI tell
     # in Spanish academic prose: corpus averages 6-7/1k words, drafts hit 13+/1k.
     (r"[a-záéíóúñ)]\s*:\s+[a-záéíóúñ«]", 0.009,
-     "densidad de dos puntos explicativos (patrón setup:elaboración); el corpus "
-     "usa ~6/1k palabras, este texto excede ese techo"),
+     "density of explanatory colons (setup:elaboration pattern); the corpus "
+     "uses ~6/1k words, this text exceeds that ceiling"),
     # The rewriter's short-sentence quota manufactures «X no es Y.» verdicts;
     # the author almost never writes them (corpus max 0.12/1k words, once in
     # 54 articles; our humanized drafts hit 5 in 4.2k words).
     (r"(?m)^[^#!\n]{0,100}\b[Nn]o\s+(?:es|son|está|están|hay|tiene)\b[^#\n]{0,50}\.\s*$",
-     0.15, "párrafos-sentencia negativos («X no es Y.» / «No hay X.» como párrafo suelto): "
-           "el autor casi nunca los escribe; una oración breve tiene que llevar dato concreto"),
+     0.15, "negative verdict paragraphs («X no es Y.» / «No hay X.» as a standalone "
+           "paragraph): the author almost never writes them; a short sentence must carry a concrete fact"),
 ]
 EN_STRUCTURAL_TELLS = [
     (r"(?m)^[^#!\n]{0,100}\b(?:It'?s not|It is not|This is not|That is not|There (?:is|are) no)\b"
@@ -188,34 +188,34 @@ def local_score(text: str, lang: str | None = None) -> dict:
     b_floor = floor("burstiness", 0.45)
     if fp["burstiness"] < b_floor:
         penalties.append((min(40, (b_floor - fp["burstiness"]) * 220),
-                          f"burstiness {fp['burstiness']} por debajo del piso humano "
-                          f"{b_floor:.3f}: oraciones demasiado parejas, hay que alternar "
-                          "períodos muy largos con oraciones brevísimas"))
+                          f"burstiness {fp['burstiness']} below the human floor "
+                          f"{b_floor:.3f}: sentences too even, alternate very long "
+                          "periods with very short sentences"))
         floors.append(penalties[-1][1])
     lo = floor("sent_len_mean", 14.0)
     hi = rng.get("sent_len_mean", {}).get("p95", 42.0)
     if not lo <= fp["sent_len_mean"] <= hi:
-        direction = "cortas" if fp["sent_len_mean"] < lo else "largas"
+        direction = "short" if fp["sent_len_mean"] < lo else "long"
         gap = lo - fp["sent_len_mean"] if fp["sent_len_mean"] < lo else fp["sent_len_mean"] - hi
         penalties.append((min(20, gap * 1.6),
-                          f"oraciones {direction} de más ({fp['sent_len_mean']} palabras; "
-                          f"el autor se mueve entre {lo:.0f} y {hi:.0f})"))
+                          f"sentences too {direction} ({fp['sent_len_mean']} words; "
+                          f"the reference prose ranges between {lo:.0f} and {hi:.0f})"))
         floors.append(penalties[-1][1])
     l_floor = floor("long_sent_ratio", 0.04)
     if fp["long_sent_ratio"] < l_floor:
-        penalties.append((12, "faltan períodos largos con subordinación encadenada "
-                              f"(>45 palabras): {fp['long_sent_ratio']:.2f} vs {l_floor:.2f}"))
+        penalties.append((12, "missing long periods with chained subordination "
+                              f"(>45 words): {fp['long_sent_ratio']:.2f} vs {l_floor:.2f}"))
         floors.append(penalties[-1][1])
     t_floor = floor("ttr", 0.25)
     if fp["ttr"] < t_floor:
-        penalties.append((8, f"léxico repetitivo (ttr {fp['ttr']} vs piso {t_floor:.3f})"))
+        penalties.append((8, f"repetitive vocabulary (ttr {fp['ttr']} vs floor {t_floor:.3f})"))
         floors.append(penalties[-1][1])
 
     words = max(len(text.split()), 1)
     hits = [t for t in tells if t not in allowed and t.split("…")[0].strip() in text.lower()]
     if hits:
         penalties.append((min(35, 7 * len(hits)),
-                          "frases-cliché de IA presentes: " + "; ".join(hits[:8])))
+                          "AI cliché phrases present: " + "; ".join(hits[:8])))
     for pattern, per_word_max, label in (STRUCTURAL_TELLS if lang == "es"
                                          else EN_STRUCTURAL_TELLS):
         n = len(re.findall(pattern, text))
@@ -224,9 +224,9 @@ def local_score(text: str, lang: str | None = None) -> dict:
 
     if (repes := repeated_phrases(text)):
         penalties.append((min(18, 3 * len(repes)),
-                          "frases repetidas casi textualmente en distintos párrafos o "
-                          "secciones (si no son terminología del tema, reescribí o borrá "
-                          "la segunda aparición): "
+                          "phrases repeated almost verbatim across paragraphs or "
+                          "sections (unless they are the topic's terminology, rewrite or "
+                          "delete the second occurrence): "
                           + "; ".join(f"«{r}»" for r in repes[:8])))
 
     # Uniform paragraph lengths are a strong generated-text signal.
@@ -235,8 +235,8 @@ def local_score(text: str, lang: str | None = None) -> dict:
         cv = statistics.pstdev(paras) / statistics.fmean(paras)
         cv_floor = floor("para_cv", 0.30)
         if cv < cv_floor:
-            penalties.append((14, f"párrafos de longitud demasiado uniforme "
-                                  f"(cv={cv:.2f}, piso humano {cv_floor:.2f})"))
+            penalties.append((14, f"paragraph lengths too uniform "
+                                  f"(cv={cv:.2f}, human floor {cv_floor:.2f})"))
             floors.append(penalties[-1][1])
 
     # Colon density: the strongest measured AI tell in this corpus. Corpus sits
@@ -248,10 +248,10 @@ def local_score(text: str, lang: str | None = None) -> dict:
     if lang == "es" and colon_per_1k > colon_ceiling:
         gap = colon_per_1k - colon_ceiling
         penalties.append((min(20, gap * 2.5),
-                          f"dos puntos explicativos en exceso ({colon_per_1k:.1f}/1k "
-                          f"palabras; techo del corpus ~{colon_ceiling:.0f}/1k). "
-                          "Reemplazá la mayoría por punto y seguido, coma, inciso "
-                          "entre paréntesis o reformulación sin pausa"))
+                          f"too many explanatory colons ({colon_per_1k:.1f}/1k "
+                          f"words; corpus ceiling ~{colon_ceiling:.0f}/1k). "
+                          "Replace most with a full stop, a comma, a parenthetical "
+                          "aside or a rewording without the pause"))
 
     # The antithesis frame is THE English AI tell («It's not X, it's Y», «not just
     # X but Y») and a strong one in Spanish («no X sino Y»). Both sit at ~1/1k in
@@ -268,8 +268,8 @@ def local_score(text: str, lang: str | None = None) -> dict:
     sino_1k = sino / max(words, 1) * 1000
     if sino_1k > 2.5:
         penalties.append((min(10, (sino_1k - 2.5) * 4),
-                          f"demasiadas antítesis «no X sino Y» ({sino_1k:.1f}/1k palabras; "
-                          "el autor usa ~1/1k): convertí varias en afirmaciones directas"
+                          f"too many «no X sino Y» antitheses ({sino_1k:.1f}/1k words; "
+                          "the author uses ~1/1k): rewrite several as direct assertions"
                           if lang == "es" else
                           f"too many «not X, but Y» antitheses ({sino_1k:.1f}/1k words; "
                           "human prose sits near 1/1k): rewrite most as direct assertions"))
@@ -345,8 +345,8 @@ def llm_judges(text: str, models: list[str] | None = None, log=ui.log,
     """
     windows = _judge_windows(text)
     if len(windows) > 1:
-        log(f"  · texto largo ({len(text)}c): juzgando {len(windows)} ventanas "
-            "(inicio, medio, final)")
+        log(f"  · long text ({len(text)}c): judging {len(windows)} windows "
+            "(opening, middle, end)")
 
     def ask(m: str) -> dict | None:
         try:
@@ -361,7 +361,7 @@ def llm_judges(text: str, models: list[str] | None = None, log=ui.log,
             worst["model"] = m
             return worst
         except Exception as e:  # noqa: BLE001 - a judge being down must not stop the run
-            log(f"  · juez {m} no disponible: {type(e).__name__}")
+            log(f"  · judge {m} unavailable: {type(e).__name__}")
             return None
 
     panel = not models
@@ -372,11 +372,11 @@ def llm_judges(text: str, models: list[str] | None = None, log=ui.log,
     if panel and not out:
         import pipeline  # lazy: pipeline imports humanize
         drafter = llm.PRO if pipeline.DRAFT_ROLE == "pro" else llm.FLASH
-        log(f"  · ningún juez respondió; juzga el modelo de redacción ({drafter})")
+        log(f"  · no judge answered; the drafting model judges ({drafter})")
         with futures.ThreadPoolExecutor(max_workers=1) as pool:  # worker thread: never prompts
             out = [r for r in [pool.submit(ask, drafter).result()] if r]
     for r in out:
-        log(f"  · juez {r['model']}: {r.get('ai_probability')}% IA "
+        log(f"  · judge {r['model']}: {r.get('ai_probability')}% AI "
             f"({r.get('veredicto', r.get('verdict'))})")
     return out
 
@@ -464,7 +464,7 @@ def external_detectors(text: str, log=ui.log, lang: str | None = None) -> list[d
         except Exception as e:  # noqa: BLE001 - a dead detector must not stop the round
             log(f"  · roberta-local error: {e}")
     for d in out:
-        log(f"  · {d['name']}: {d['ai_probability']}% IA")
+        log(f"  · {d['name']}: {d['ai_probability']}% AI")
     return out
 
 
@@ -590,27 +590,25 @@ def _rewrite(text: str, issues: list[str], style_block: str, log,
                 previous=" ".join("\n\n".join(b for _, b in blocks[max(0, index - 2):index]).split()[-100:]),
                 following=" ".join("\n\n".join(b for _, b in blocks[index + 1:index + 3]).split()[:100]),
                 registro=register or ("A sober theoretical essay: argued with data and "
-                                      "citations, not with adjectives or irony." if en else
-                                      "Ensayo teórico sobrio: se argumenta con datos y "
-                                      "citas, no con adjetivos ni con ironía."),
+                                      "citations, not with adjectives or irony."),
                 issues=issue_text, style_block=style_block, text=block)
             out = llm.chat(llm.FLASH, prompt.format(**fmt), temperature=0.6).strip()
             # Enforce the prompt's length bound before accepting a rewrite.
             if not 0.9 * w <= len(out.split()) <= 1.1 * w:
-                log("  · bloque reescrito volvió recortado o ampliado; lo dejo como está")
+                log("  · rewritten block came back cut or padded; keeping it as is")
                 return block
             if _protected(block) != _protected(out):
-                log("  · reescritura alteró citas, cifras o notas; conservo el bloque")
+                log("  · rewrite altered citations, figures or notes; keeping the block")
                 return block
             if style.detect_language(out) not in (None, lang):
-                log("  · reescritura cambió de idioma; conservo el bloque")
+                log("  · rewrite changed language; keeping the block")
                 return block
             if re.search(r"(?m)^\s*(?:#{1,6}\s|```)", out):
-                log("  · reescritura agregó encabezados o código; conservo el bloque")
+                log("  · rewrite added headings or code; keeping the block")
                 return block
             return out or block
         except Exception as e:  # noqa: BLE001 - keep the original block on failure
-            log(f"  · reescritura de bloque falló ({type(e).__name__}); lo dejo como está")
+            log(f"  · block rewrite failed ({type(e).__name__}); keeping it as is")
             return block
 
     # Blocks are independent, so a book-length rewrite costs one block's latency
@@ -655,7 +653,7 @@ def humanize(text: str, *, rounds: int = 3, threshold: float = 25.0,
         result = {"round": i, "local": local["score"], "judges": judges,
                   "external": ext, "worst": worst, "text_hash": text_hash(text)}
         report["rounds"].append(result)
-        log(f"[detector] ronda {i}: estilo={local['score']} detector={worst} (umbral {threshold})")
+        log(f"[detector] round {i}: style={local['score']} detector={worst} (threshold {threshold})")
         rank = worst if worst is not None else 1000 + local["score"]
         if rank < best_score:
             best, best_score, best_result = text, rank, result
@@ -671,9 +669,9 @@ def humanize(text: str, *, rounds: int = 3, threshold: float = 25.0,
         issues = list(local["issues_texto"])
         for j in judges:
             issues += [f"[{j['model']}] {s}" for s in (j.get("señales") or [])[:4]]
-            issues += [f"[{j['model']}] fragmento delator: «{f}»"
+            issues += [f"[{j['model']}] giveaway fragment: «{f}»"
                        for f in (j.get("fragmentos_sospechosos") or [])[:3]]
-        log(f"[detector] reescribiendo por bloques ({len(issues)} señales)…")
+        log(f"[detector] rewriting block by block ({len(issues)} signals)…")
         rewritten = _rewrite(text, issues, sb, log, register=register, lang=lang)
         if rewritten == text:
             break

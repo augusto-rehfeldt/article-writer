@@ -164,7 +164,7 @@ candidatos de descarga directa que encontró más siete enlaces de respaldo —A
 Archive, Library Genesis, Z-Library, Marxists Internet Archive, Google Books, Internet
 Archive, Open Library—. Dejás los archivos en `library/`, apretás Enter, y vuelve a
 chequear; también podés pegar una URL y la baja en el momento. Hasta tres rondas.
-Escribí `seguir` para continuar sin ellas. En modo `auto` imprime el informe y sigue
+Escribí `skip` para continuar sin ellas. En modo `auto` imprime el informe y sigue
 solo, sin bloquear. Con `--no-library` ni pregunta.
 
 ### Citas: APA 7 y nada inventado
@@ -215,6 +215,15 @@ omitir los detectores no cuenta como haberlos pasado.
 **Inglés (default; `--spanish` para español).** Usa `corpus_en/`, la guía inglesa y criterios de
 redacción propios del idioma; también traduce los rótulos, la fecha y la bibliografía
 generados por el programa. `python build_corpus_en.py --guide` prepara ese corpus.
+**Consola y prompts en inglés.** Todos los mensajes de la consola, el asistente y las
+preguntas interactivas (`[y/N]`, `[e]dit / [p]ublish / [n]o`, `[w]ait / [c]hange / [a]bort`)
+están en inglés, y también las instrucciones que reciben los modelos; el idioma del
+artículo lo fija una directiva al final de cada prompt (`pipeline._lang()`), así que
+`--spanish` sigue escribiendo en español rioplatense. Los nombres de campos JSON y
+los archivos de `output/` no cambian, así que los runs viejos se retoman igual.
+El juez y el reescritor específicos del español (`humanize.JUDGE_PROMPT`,
+`REWRITE_PROMPT`) y la construcción de la guía española (`style.BUILD_PROMPT`)
+siguen en español: solo corren con `--spanish`.
 Sin corpus o guía ingleses, puede escribir con los criterios generales. Las llamadas
 a los escritores CLI se aíslan de las instrucciones de programación del proyecto.
 

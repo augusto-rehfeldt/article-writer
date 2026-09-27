@@ -922,29 +922,29 @@ def web_fulltext(wanted: str, log=print) -> Source | None:
 
 # A reading list written in Spanish asks for a work that was published in German and
 # catalogued in English. Word overlap cannot bridge that; asking can.
-_WORK_INFO_PROMPT = """Abajo va una obra tal como la pidió una lista de lecturas. \
-Decinos dos cosas: con qué otros títulos se la publicó o se la cataloga, y si es un \
-libro o un texto breve.
+_WORK_INFO_PROMPT = """Below is a work as a reading list asked for it. \
+Tell us two things: under which other titles it was published or is catalogued, and \
+whether it is a book or a short text.
 
-Formato:
+Format:
 {{"titulos": ["Der Kollaps der Modernisierung", "The Collapse of Modernization"],
   "tipo": "libro"}}
 
-Reglas:
-- "titulos": el título de ESA MISMA obra en los otros idiomas en que se publicó,
-  empezando por el idioma original. Como máximo dos.
-- Solo la misma obra. Otro libro del mismo autor no va, ni un capítulo suyo, ni una
-  obra parecida: si «El colapso de la modernización» es lo pedido, «Dinero sin valor»
-  está mal aunque lo firme la misma persona.
-- Si no conocés la obra, o ya está en su idioma original, o dudás, devolvé
-  {{"titulos": []}}. Una lista vacía es una respuesta correcta.
-- No traduzcas palabra por palabra: queremos el título con el que se publicó de
-  verdad. Si no sabés cuál fue, no lo inventes.
-- "tipo" es "libro" si la obra se publicó como libro (cientos de páginas), y "breve"
-  si es un artículo de revista, una ponencia, un informe, un ensayo suelto o un
-  capítulo. Si no sabés, "breve".
+Rules:
+- "titulos": the title of THAT SAME work in the other languages it was published in,
+  starting with the original language. Two at most.
+- Only the same work. Another book by the same author does not count, nor one of its
+  chapters, nor a similar work: if «El colapso de la modernización» is what was asked
+  for, «Geld ohne Wert» is wrong even though the same person signs it.
+- If you do not know the work, or it is already in its original language, or you are
+  unsure, return {{"titulos": []}}. An empty list is a correct answer.
+- Do not translate word for word: we want the title it was actually published under.
+  If you do not know it, do not invent it.
+- "tipo" is "libro" if the work was published as a book (hundreds of pages), and
+  "breve" if it is a journal article, a conference paper, a report, a standalone essay
+  or a chapter. If you do not know, "breve".
 
-Obra pedida:
+Requested work:
 {pedido}"""
 
 
@@ -994,29 +994,30 @@ def _work_info(author: str, title: str, year: str) -> dict:
 
 # The reference list prints whatever is in ``Source``, so a work whose only name is
 # the one the reading list guessed at gets cited under a title nobody published.
-_TITLEPAGE_PROMPT = """Abajo está el comienzo del texto de un documento que se acaba \
-de descargar: portada, encabezado o primera página. Devolvé sus datos bibliográficos \
-tal como figuran en el documento.
+_TITLEPAGE_PROMPT = """Below is the beginning of a document that was just \
+downloaded: cover, header or first page. Return its bibliographic data as the \
+document itself gives it.
 
-Formato:
-{{"titulo": "...", "autores": ["Nombre Apellido"], "anio": "1966", "editorial": "..."}}
+Format:
+{{"titulo": "...", "autores": ["First Last"], "anio": "1966", "editorial": "..."}}
 
-Reglas:
-- Copiá el título del documento. No lo traduzcas, no lo abrevies, no lo completes.
-  Si viene cortado en varias líneas, unilo en una.
-- Los autores como los escribe el documento, con el nombre primero y el apellido
-  después ("Kenneth E. Boulding"), que de darlos vuelta se encarga otro. Si el texto
-  no los nombra, dejá [].
-- "editorial" es la editorial o la revista donde salió, si el documento la dice.
-- El texto sale de un OCR: si viene partido («Fr ́ ed ́ eric»), escribí la forma
-  normal («Frédéric»), y si el título está todo en mayúsculas porque así lo pone la
-  tapa, devolvelo con mayúsculas y minúsculas normales.
-- Lo que el documento no diga va vacío. No adivines y no uses lo que sepas de memoria.
+Rules:
+- Copy the document's title. Do not translate, shorten or complete it. If it wraps
+  over several lines, join it into one.
+- Authors as the document writes them, given name first and surname after
+  ("Kenneth E. Boulding"); someone else reverses them. If the text names none,
+  leave [].
+- "editorial" is the publisher or the journal it appeared in, if the document says so.
+- The text comes from OCR: if a word is broken («Fr ́ ed ́ eric»), write the normal
+  form («Frédéric»), and if the title is all capitals because the cover sets it so,
+  return it in normal upper and lower case.
+- Whatever the document does not say stays empty. Do not guess and do not use what
+  you know from memory.
 
-Referencia de quien lo pidió (puede estar mal escrita o traducida, no la copies):
+Reference from whoever asked for it (it may be misspelled or translated; do not copy it):
 {pedido}
 
-Documento:
+Document:
 {texto}"""
 
 
@@ -1075,8 +1076,7 @@ def _size(body: str) -> str:
     Downloads are uncapped, so the number is the whole extracted text, not a
     ceiling. The «recortado» flag is gone with the caps.
     """
-    words = f"{len(body.split()):,}".replace(",", ".")
-    return f"{words} palabras"
+    return f"{len(body.split()):,} words"
 
 
 def _cut(body: str) -> bool:
@@ -1108,8 +1108,8 @@ def _partial(body: str) -> str:
     if not body:
         return ""
     if _cut(body):
-        return " — cortado a la mitad"
-    return " — ¿extracto?" if len(body) < 60000 else ""
+        return " — cut off midway"
+    return " — excerpt?" if len(body) < 60000 else ""
 
 
 def _library_path(author: str, title: str, year: str, ext: str) -> pathlib.Path:
@@ -1198,7 +1198,7 @@ def fetch_book(wanted: str, log=print) -> Source | None:
             body = read_local(p, 0)
             if len(body) > 3000:
                 flag = _partial(body)
-                log(f"  · ya en biblioteca: {_trim(wanted, 60)} ({_size(body)}{flag})")
+                log(f"  · already in library: {_trim(wanted, 60)} ({_size(body)}{flag})")
                 # ``alt``, not the wanted title: on the second lap the file on disk is
                 # the German edition, and APA cites the edition that was read.
                 return Source(title=alt or p.stem, authors=[author] if author else [],
@@ -1281,8 +1281,8 @@ def fetch_book(wanted: str, log=print) -> Source | None:
     if best is not None and best_size < floor:
         # Rejected, not filed. A chapter in the dossier is a chapter the drafting
         # model quotes as if it were the book, under a citation to the whole work.
-        log(f"  · descartado: de «{_trim(title, 45)}» solo apareció un extracto "
-            f"({_size(best.fulltext)}) — poné el libro en library/ y volvé a correr")
+        log(f"  · dropped: only an excerpt of «{_trim(title, 45)}» turned up "
+            f"({_size(best.fulltext)}) — put the book in library/ and run again")
         return None
     return best
 
@@ -1518,12 +1518,12 @@ def gather(queries: list[str], *, news_queries: list[str] | None = None,
     for q in queries[:3]:
         tasks.append((f"arxiv: {q}", lambda q=q: arxiv(q, 3)))
     for q in queries[:2]:
-        tasks.append((f"archivos teóricos: {q}", lambda q=q: archive_search(q, per_site=1)))
+        tasks.append((f"theory archives: {q}", lambda q=q: archive_search(q, per_site=1)))
     for q in (news_queries or queries[:3]):
-        tasks += [(f"prensa es: {q}", lambda q=q: google_news(q, 8, "es")),
+        tasks += [(f"news es: {q}", lambda q=q: google_news(q, 8, "es")),
                   (f"gdelt: {q}", lambda q=q: gdelt_news(q, 5))]
     for q in (news_queries_en or []):
-        tasks.append((f"prensa en: {q}", lambda q=q: google_news(q, 6, "en")))
+        tasks.append((f"news en: {q}", lambda q=q: google_news(q, 6, "en")))
 
     found: list[Source] = []
     with futures.ThreadPoolExecutor(max_workers=workers) as pool:
@@ -1533,13 +1533,13 @@ def gather(queries: list[str], *, news_queries: list[str] | None = None,
             try:
                 got = done.result()
             except Exception as e:  # noqa: BLE001 - one dead connector must not kill the dossier
-                log(f"  · {label} falló ({type(e).__name__})")
+                log(f"  · {label} failed ({type(e).__name__})")
                 continue
             found += got
             log(f"  · {label} → {len(got)}")
     local = scan_library()
     if local:
-        log(f"  · biblioteca local: {len(local)} archivos")
+        log(f"  · local library: {len(local)} files")
     return assign_keys(dedupe(found + local))
 
 
@@ -1602,7 +1602,7 @@ def enrich_fulltext(sources: list[Source], budget: int = 12, workers: int = 6,
     with futures.ThreadPoolExecutor(max_workers=workers) as pool:
         results = list(pool.map(lambda s: _retrieve(s, log), todo))
     got = sum(results)
-    log(f"  · texto completo obtenido para {got}/{len(todo)} fuentes")
+    log(f"  · full text obtained for {got}/{len(todo)} sources")
     return got
 
 
@@ -1685,14 +1685,14 @@ def missing_books(sources: list[Source], wanted: list[str], log=print,
 
     got: dict[str, Source | None] = {}
     if todo:
-        log(f"[bibliografía] bajando {min(len(todo), budget)} obra(s) a library/…")
+        log(f"[bibliography] downloading {min(len(todo), budget)} work(s) to library/…")
         with futures.ThreadPoolExecutor(max_workers=workers) as pool:
             jobs = {pool.submit(fetch_book, w, log): w for w in todo[:budget]}
             for done in futures.as_completed(jobs):
                 try:
                     got[jobs[done]] = done.result()
                 except Exception as e:  # noqa: BLE001 - a dead mirror must not kill the run
-                    log(f"  · falló la descarga de {_trim(jobs[done], 50)} ({type(e).__name__})")
+                    log(f"  · download failed for {_trim(jobs[done], 50)} ({type(e).__name__})")
                     got[jobs[done]] = None
     landed = [s for s in got.values() if s]
     if landed:
@@ -1704,7 +1704,7 @@ def missing_books(sources: list[Source], wanted: list[str], log=print,
         if got.get(w):
             continue
         gaps.append({"wanted": w, "fallbacks": _fallback_links(w)})
-        log(f"  · falta el texto completo de: {w}")
+        log(f"  · full text missing for: {w}")
     return gaps
 
 

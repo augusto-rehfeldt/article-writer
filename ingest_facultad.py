@@ -77,25 +77,25 @@ def candidates(root: pathlib.Path) -> list[pathlib.Path]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("root", nargs="?", default=str(DEFAULT_ROOT))
-    ap.add_argument("--limit", type=int, default=0, help="clasificar solo N archivos")
+    ap.add_argument("--limit", type=int, default=0, help="classify only N files")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--min-words", type=int, default=MIN_WORDS)
     args = ap.parse_args()
 
     root = pathlib.Path(args.root)
     if not root.exists():
-        print(f"No existe {root}")
+        print(f"{root} does not exist")
         return 1
     OUT.mkdir(exist_ok=True)
 
     cands = candidates(root)
-    print(f"[facultad] {len(cands)} archivos candidatos en {root}")
+    print(f"[facultad] {len(cands)} candidate files in {root}")
     long_enough = []
     for p in cands:
         text = research.read_local(p)
         if len(text.split()) >= args.min_words:
             long_enough.append((p, text))
-    print(f"[facultad] {len(long_enough)} con >= {args.min_words} palabras")
+    print(f"[facultad] {len(long_enough)} with >= {args.min_words} words")
     if args.limit:
         long_enough = long_enough[:args.limit]
 
@@ -113,7 +113,7 @@ def main() -> int:
                 verdict = llm.chat_json(llm.FLASH, CLASSIFY.format(sample=text[:4000]),
                                         temperature=0.1)
             except Exception as e:  # noqa: BLE001
-                print(f"  ? {p.name[:60]}: clasificación falló ({type(e).__name__})")
+                print(f"  ? {p.name[:60]}: classification failed ({type(e).__name__})")
                 continue
             cache[stamp] = verdict
             cache_path.write_text(json.dumps(cache, ensure_ascii=False, indent=1),
@@ -139,8 +139,8 @@ def main() -> int:
     if not args.dry_run:
         (OUT / "_index.json").write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n[facultad] aceptados {len(manifest)} textos, {kept_words} palabras -> {OUT}")
-    print("[facultad] reconstruí el estilo con: python main.py --refresh-style")
+    print(f"\n[facultad] accepted {len(manifest)} texts, {kept_words} words -> {OUT}")
+    print("[facultad] rebuild the style with: python main.py --refresh-style")
     return 0
 
 

@@ -169,7 +169,7 @@ def corpus_fingerprint(refresh: bool = False, lang: str = "es") -> dict:
     if not arts:
         # Degrade instead of dying: humanize.local_score(lang="en") must work
         # (on built-in floors) even before build_corpus_en.py ever ran.
-        ui.log(f"[style] sin corpus para lang={lang!r}; uso pisos por defecto")
+        ui.log(f"[style] no corpus for lang={lang!r}; using default floors")
         return {"signature_phrases": [], "ranges": {}}
     joined = "\n\n".join(body for _, body in arts)
     fp = fingerprint(joined)
@@ -282,16 +282,16 @@ def build_guide(refresh: bool = False, sample_chars: int = 90000,
         return guide_path.read_text(encoding="utf-8")
     arts = articles() if lang == "es" else articles_en()
     if not arts:
-        raise SystemExit("corpus/ vacío — corré primero: python scrape_corpus.py"
+        raise SystemExit("corpus/ is empty — run first: python scrape_corpus.py"
                          if lang == "es" else
-                         "corpus_en/ vacío — corré primero: python build_corpus_en.py")
+                         "corpus_en/ is empty — run first: python build_corpus_en.py")
     # Sample from every article so both the long-academic and short-polemic
     # registers are represented, not just the longest pieces.
     per = max(2000, sample_chars // len(arts))
     sample = "\n\n".join(f"### {slug}\n{body[:per]}" for slug, body in arts)
     fp = corpus_fingerprint(refresh=True, lang=lang)
-    ui.log(f"[style] construyendo guía ({lang}) con {llm.PRO} sobre "
-           f"{len(sample.split()):,} palabras…")
+    ui.log(f"[style] building the guide ({lang}) with {llm.PRO} over "
+           f"{len(sample.split()):,} words…")
     prompt = BUILD_PROMPT if lang == "es" else BUILD_PROMPT_EN
     guide = llm.chat(llm.PRO, prompt.format(
         corpus=sample, metrics=json.dumps(fp, ensure_ascii=False, indent=2)),
@@ -311,9 +311,9 @@ def style_block_compact(seed: int | None = None, lang: str = "es") -> str:
         return ("# VERBATIM SAMPLES OF HUMAN ACADEMIC ENGLISH (imitate this voice)\n"
                 "Voice reference only: any citations in these samples are NOT usable "
                 "bibliography.\n\n" + excerpts(2, 1800, seed, lang="en"))
-    return ("# MUESTRAS LITERALES DEL AUTOR (imitá esta voz)\n"
-            "Referencia de voz solamente: las citas que aparezcan acá NO son "
-            "bibliografía utilizable.\n\n" + excerpts(2, 1800, seed))
+    return ("# VERBATIM SAMPLES OF THE AUTHOR (imitate this voice)\n"
+            "Voice reference only: citations appearing here are NOT usable "
+            "bibliography.\n\n" + excerpts(2, 1800, seed))
 
 
 _guide_en_dead = False    # one failed build attempt per process, not one per draft call
@@ -336,22 +336,22 @@ source quotations and titles exactly. Never invent experience, mistakes, quotati
 evidence or disagreements to sound human. Style samples guide the voice; their wording,
 facts and citations must not be borrowed. These priorities override stylistic quotas
 in a reference guide; the requested format and factual fidelity take precedence."""
-    return """Escribí en español rioplatense natural, adecuado al lector y al registro.
-Usá verbos precisos, sujetos concretos y transiciones que expresen la relación real
-entre las ideas. Mantené estables los términos técnicos y explicalos cuando haga falta.
-El argumento decide la longitud de las oraciones y la forma de cada párrafo. No fuerces
-frases breves, subordinadas largas, incisos, preguntas retóricas ni signos de puntuación
-para cumplir cuotas. Quitá la presentación repetitiva y los cierres vacíos; conservá
-las indicaciones que orientan al lector. Cada párrafo cumple una función y enlaza con
-los vecinos. Cerrá con una consecuencia fundada o un límite, sin forzar consignas.
-Evitá calcos del inglés, sinónimos decorativos y enclisis arcaicas como «débese» o
-«trátase» impuestas para imitar una voz. Usá tildes y signos de apertura correctamente;
-si te dirigís al lector, mantené el voseo. No agregues coloquialismos a un texto académico.
-Conservá literalmente las citas textuales y los títulos en su idioma original. Nunca
-inventes experiencias, errores, citas, datos ni desacuerdos para parecer humano.
-Las muestras orientan la voz; no se toman prestadas sus frases, datos ni referencias.
-Estas prioridades prevalecen sobre las cuotas de una guía de estilo; mandan el formato
-pedido y la fidelidad a los hechos."""
+    return """Write natural Rioplatense Spanish, suited to the intended reader and register.
+Use precise verbs, concrete subjects and transitions that express the actual connection
+between ideas. Keep technical terms consistent; explain them when the reader needs it.
+Let the argument determine sentence length and paragraph shape. Do not manufacture
+short sentences, long subordinate clauses, asides, rhetorical questions or punctuation
+to meet a quota. Remove repetitive framing and empty conclusions; keep the signposting
+that orients the reader. Give each paragraph a purpose and connect it to its neighbours.
+End on a supported consequence or a stated limit, without forcing a slogan.
+Avoid anglicisms, decorative synonyms and archaic enclitics such as «débese» or
+«trátase» imposed to imitate a voice. Use accents and opening marks (¿ ¡) correctly;
+when addressing the reader, keep voseo. Do not add colloquialisms to an academic text.
+Preserve verbatim quotations and titles in their original language. Never invent
+experience, mistakes, quotations, facts or disagreements to sound human.
+Style samples guide the voice; their wording, facts and citations must not be borrowed.
+These priorities override stylistic quotas in a reference guide; the requested
+format and factual fidelity take precedence."""
 
 
 def style_block(seed: int | None = None, lang: str = "es") -> str:
@@ -361,14 +361,14 @@ def style_block(seed: int | None = None, lang: str = "es") -> str:
     if lang == "en":
         # The guide needs one PRO call over the corpus; until it has been built
         # (or while every provider is down) draft anyway without it.
-        guide = "(guía de estilo no construida todavía — usá las muestras de abajo)"
+        guide = "(style guide not built yet — use the samples below)"
         if not _guide_en_dead and (GUIDE_EN.exists() or articles_en()):
             try:
                 guide = build_guide(lang="en")
             except Exception as e:  # noqa: BLE001 - a missing guide must not kill a run
                 _guide_en_dead = True
-                ui.log(f"[style] guía inglesa no disponible ({type(e).__name__}); "
-                       "sigo con muestras y huella")
+                ui.log(f"[style] English guide unavailable ({type(e).__name__}); "
+                       "carrying on with samples and fingerprint")
         return (f"# STYLE GUIDE (human academic English)\n{guide}\n\n"
                 f"# DESCRIPTIVE FINGERPRINT (reference, not quotas)\n{json.dumps(fp, ensure_ascii=False)}\n\n"
                 "# VERBATIM SAMPLES\n"
@@ -376,13 +376,13 @@ def style_block(seed: int | None = None, lang: str = "es") -> str:
                 "arguing. Citations appearing here are NOT available bibliography; the "
                 "only valid bibliography is the dossier below.\n\n"
                 f"{excerpts(3, 3000, seed, lang='en')}")
-    return (f"# GUÍA DE ESTILO DEL AUTOR\n{build_guide()}\n\n"
-            f"# HUELLA DESCRIPTIVA (referencia, no cuotas)\n{json.dumps(fp, ensure_ascii=False)}\n\n"
-            "# MUESTRAS LITERALES DEL AUTOR\n"
-            "Son solo referencia de VOZ: sintaxis, ritmo, puntuación, modo de argumentar. "
-            "Las citas y referencias que aparezcan en estas muestras NO son bibliografía "
-            "disponible y no se pueden reutilizar; la única bibliografía válida es el "
-            "dossier de fuentes que viene más abajo.\n\n"
+    return (f"# THE AUTHOR'S STYLE GUIDE\n{build_guide()}\n\n"
+            f"# DESCRIPTIVE FINGERPRINT (reference, not quotas)\n{json.dumps(fp, ensure_ascii=False)}\n\n"
+            "# VERBATIM SAMPLES OF THE AUTHOR\n"
+            "These are voice reference ONLY: syntax, rhythm, punctuation, ways of "
+            "arguing. Citations and references appearing in these samples are NOT "
+            "available bibliography and cannot be reused; the only valid bibliography "
+            "is the source dossier below.\n\n"
             f"{excerpts(3, 3000, seed)}")
 
 

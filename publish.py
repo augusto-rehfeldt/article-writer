@@ -165,19 +165,19 @@ def find_cover(title: str, hint: str = "", *, timeout: int = 30, log=print) -> d
                     seen.add(c["url"])
                     cands.append(c)
         if not cands:
-            log("[publicar] tapa: Commons no devolvió imágenes útiles; sigo sin tapa.")
+            log("[publish] cover: Commons returned no usable images; going on without a cover.")
             return None
         cands = cands[:24]
         listing = "\n".join(f"{i}. {c['title']} — {c['description']}" for i, c in enumerate(cands))
         pick = int(llm.chat_json(llm.FLASH, _COVER_PICK.format(
             title=title, hint=hint, candidates=listing), temperature=0.1).get("pick", -1))
     except Exception as exc:  # noqa: BLE001 - decoration must not stop publishing
-        log(f"[publicar] tapa falló ({exc}); sigo sin tapa.")
+        log(f"[publish] cover failed ({exc}); going on without a cover.")
         return None
     if not 0 <= pick < len(cands):
-        log("[publicar] tapa: ninguna imagen encaja; sigo sin tapa.")
+        log("[publish] cover: no image fits; going on without a cover.")
         return None
-    log(f"[publicar] tapa: {cands[pick]['title']} ({cands[pick]['license']})")
+    log(f"[publish] cover: {cands[pick]['title']} ({cands[pick]['license']})")
     return cands[pick]
 
 
@@ -201,7 +201,7 @@ def make_cover(cover: dict, *, timeout: int = 60, log=print) -> bytes | None:
         r.raise_for_status()
         return r.content
     except Exception as exc:  # noqa: BLE001
-        log(f"[publicar] tapa no se pudo bajar ({exc}); sigo sin tapa.")
+        log(f"[publish] cover could not be downloaded ({exc}); going on without a cover.")
         return None
 
 
@@ -226,19 +226,19 @@ def _attach_cover(post: dict, title: str, cover: dict, *, site: str, auth: tuple
             headers={"Content-Disposition": f'attachment; filename="{name}.{ext}"',
                      "Content-Type": mime})
         if r.status_code >= 400:
-            log(f"[publicar] media subió mal ({r.status_code}): {r.text[:200]}")
+            log(f"[publish] media upload failed ({r.status_code}): {r.text[:200]}")
             return
         media_id = r.json().get("id")
         r = requests.post(f"{site}/wp-json/wp/v2/posts/{post['id']}",
                           json={"featured_media": media_id},
                           timeout=timeout, auth=auth)
     except Exception as exc:  # noqa: BLE001 - decoration must not cost the receipt
-        log(f"[publicar] tapa falló después de publicar ({exc}); sigo sin tapa.")
+        log(f"[publish] cover failed after publishing ({exc}); going on without a cover.")
         return
     if r.status_code >= 400:
-        log(f"[publicar] tapa no quedó asignada ({r.status_code})")
+        log(f"[publish] cover was not assigned ({r.status_code})")
     else:
-        log("[publicar] tapa asignada como imagen destacada.")
+        log("[publish] cover set as featured image.")
 
 
 def _created(r, log) -> dict:
@@ -253,8 +253,8 @@ def _created(r, log) -> dict:
         # REST route with its home page and a 200: nothing was posted, and a
         # receipt would mark the run published forever.
         if r.status_code != 201:
-            raise RuntimeError(f"HTTP {r.status_code} sin JSON: el destino no creó el artículo")
-        log("[publicar] creado (HTTP 201) pero la respuesta no es JSON; guardo recibo igual.")
+            raise RuntimeError(f"HTTP {r.status_code} without JSON: the target did not create the article")
+        log("[publish] created (HTTP 201) but the response is not JSON; saving the receipt anyway.")
         post = {"id": None, "link": None, "status_code": r.status_code}
     return post
 
@@ -293,10 +293,10 @@ def _publish_devto(markdown: str, *, status: str, excerpt: str, cover: dict | No
                       headers={"api-key": os.environ["DEVTO_API_KEY"]},
                       timeout=timeout)
     if r.status_code >= 400:
-        log(f"[publicar] dev.to respondió {r.status_code}: {r.text[:300]}")
+        log(f"[publish] dev.to answered {r.status_code}: {r.text[:300]}")
         r.raise_for_status()
     post = _created(r, log)
-    log(f"[publicar] {status}: {post.get('url') or post.get('id')}")
+    log(f"[publish] {status}: {post.get('url') or post.get('id')}")
     return post
 
 
@@ -308,10 +308,10 @@ def publish(markdown: str, *, status: str = "draft", excerpt: str = "",
     handed to WordPress, which would silently coerce it.
     """
     if status not in ("draft", "publish", "pending", "private"):
-        raise ValueError(f"estado inválido para WordPress: {status!r}")
+        raise ValueError(f"invalid WordPress status: {status!r}")
     if not configured():
-        log("[publicar] falta la configuración del destino (AW_PUBLISH_TARGET / "
-            "DEVTO_API_KEY o AW_WP_*); no subo nada.")
+        log("[publish] the publishing target is not configured (AW_PUBLISH_TARGET / "
+            "DEVTO_API_KEY or AW_WP_*); uploading nothing.")
         return None
     title, body = split_title(markdown)
     cover = None
@@ -334,10 +334,10 @@ def publish(markdown: str, *, status: str = "draft", excerpt: str = "",
         f"{site}/wp-json/wp/v2/posts", json=payload, timeout=timeout,
         auth=(os.environ["AW_WP_USER"], os.environ["AW_WP_APP_PASSWORD"]))
     if r.status_code >= 400:
-        log(f"[publicar] WordPress respondió {r.status_code}: {r.text[:300]}")
+        log(f"[publish] WordPress answered {r.status_code}: {r.text[:300]}")
         r.raise_for_status()
     post = _created(r, log)
-    log(f"[publicar] {status}: {post.get('link') or post.get('id')}")
+    log(f"[publish] {status}: {post.get('link') or post.get('id')}")
     if cover:
         _attach_cover(post, title, cover, site=site,
                       auth=(os.environ["AW_WP_USER"], os.environ["AW_WP_APP_PASSWORD"]),
@@ -353,11 +353,11 @@ def publish_run(run_dir: pathlib.Path, *, status: str = "draft", log=print) -> d
     """
     receipt = run_dir / "09_publicado.json"
     if receipt.exists():
-        log(f"[publicar] ya estaba publicado: {run_dir.name}")
+        log(f"[publish] already published: {run_dir.name}")
         return None
     final = run_dir / "05_final.md"
     if not final.exists():
-        log(f"[publicar] no hay 05_final.md en {run_dir}")
+        log(f"[publish] no 05_final.md in {run_dir}")
         return None
     post = publish(final.read_text(encoding="utf-8"), status=status, log=log)
     if post:
@@ -395,12 +395,12 @@ def replace_covers(output: pathlib.Path, *, dry_run: bool = False, timeout: int 
         pid = json.loads(receipt.read_text(encoding="utf-8")).get("id")
         art = mine.get(pid)
         if not art:
-            log(f"[tapas] {receipt.parent.name}: el post {pid} no está en dev.to; salto.")
+            log(f"[covers] {receipt.parent.name}: post {pid} is not on dev.to; skipping.")
             continue
         md = art["body_markdown"]
         m = re.match(r"---\n(.*?)\n---\n?", md, re.S)
         if not m:  # rewriting it would have to invent title/published lines
-            log(f"[tapas] {art['title']}: sin front matter; salto.")
+            log(f"[covers] {art['title']}: no front matter; skipping.")
             continue
         front = m.group(1)
         if "wikimedia.org" in front:  # already replaced
@@ -411,7 +411,7 @@ def replace_covers(output: pathlib.Path, *, dry_run: bool = False, timeout: int 
         if not cover and not generated:
             continue
         # No fitting photo still beats the old generated cover: drop it.
-        log(f"[tapas] {art['title']}\n        → {cover['url'] if cover else 'sin tapa'}")
+        log(f"[covers] {art['title']}\n        → {cover['url'] if cover else 'no cover'}")
         if dry_run:
             continue
         front = "\n".join(ln for ln in front.split("\n") if not ln.startswith("cover_image:"))
@@ -423,7 +423,7 @@ def replace_covers(output: pathlib.Path, *, dry_run: bool = False, timeout: int 
         r = requests.put(f"{_DEVTO_API}/articles/{pid}", headers=head, timeout=timeout,
                          json={"article": {"body_markdown": new}})
         if r.status_code >= 400:
-            log(f"[tapas] dev.to respondió {r.status_code}: {r.text[:200]}")
+            log(f"[covers] dev.to answered {r.status_code}: {r.text[:200]}")
             continue
         changed += 1
     return changed
@@ -437,4 +437,4 @@ if __name__ == "__main__":
         sys.exit("uso: python publish.py --replace-covers [--dry-run]")
     n = replace_covers(pathlib.Path(__file__).with_name("output"),
                        dry_run="--dry-run" in sys.argv)
-    print(f"[tapas] {n} tapas reemplazadas.")
+    print(f"[covers] {n} covers replaced.")

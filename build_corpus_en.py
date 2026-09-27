@@ -117,7 +117,7 @@ def main() -> None:
     seen: set[str] = set()
     total = 0
 
-    print("[corpus_en] arXiv (papers recientes, registro académico actual)…")
+    print("[corpus_en] arXiv (recent papers, current academic register)…")
     for q in ARXIV_QUERIES:
         for s in research.arxiv(q, limit=5):
             slug = f"arxiv-{_slug(s.title)}"
@@ -126,7 +126,7 @@ def main() -> None:
             if research._retrieve(s, print) and is_english(s.fulltext):
                 total += _write_chunks(slug, s.fulltext, seen)
 
-    print("[corpus_en] Gutenberg (clásicos de teoría social, dominio público)…")
+    print("[corpus_en] Gutenberg (social-theory classics, public domain)…")
     for title in GUTENBERG_TITLES:
         slug = f"gutenberg-{_slug(title)}"
         if any(x.startswith(slug) for x in existing | seen):
@@ -140,31 +140,31 @@ def main() -> None:
                 total += _write_chunks(slug, body, seen, max_parts=4)
                 break
 
-    print("[corpus_en] library/ (obras en inglés ya descargadas por los runs)…")
+    print("[corpus_en] library/ (English works already downloaded by runs)…")
     try:
         lib = [s for s in research.scan_library()
                if s.fulltext and is_english(s.fulltext)]
-        print(f"  · {len(lib)} obras en inglés en library/")
+        print(f"  · {len(lib)} English works in library/")
         for s in lib:
             slug = f"library-{_slug(s.title)}"
             if any(x.startswith(slug) for x in existing | seen):
                 continue
             total += _write_chunks(slug, s.fulltext, seen, max_parts=3)
     except Exception as e:  # noqa: BLE001 - an empty library must not kill the build
-        print(f"  · library/ no disponible ({type(e).__name__})")
+        print(f"  · library/ unavailable ({type(e).__name__})")
 
-    print(f"[corpus_en] {total} archivos nuevos en {OUT}/ "
-          f"({len(list(OUT.glob('*.md')))} en total)")
+    print(f"[corpus_en] {total} new files in {OUT}/ "
+          f"({len(list(OUT.glob('*.md')))} in total)")
     if "--guide" in sys.argv:
         style.articles_en.cache_clear()
         style.corpus_fingerprint(refresh=True, lang="en")
-        print(f"[corpus_en] huella inglesa: {style.FINGERPRINT_EN.name}")
+        print(f"[corpus_en] English fingerprint: {style.FINGERPRINT_EN.name}")
         try:
             style.build_guide(refresh=True, lang="en")
-            print(f"[corpus_en] guía en inglés: {style.GUIDE_EN.name}")
+            print(f"[corpus_en] English guide: {style.GUIDE_EN.name}")
         except Exception as e:  # noqa: BLE001 - providers down: fingerprint still lands
-            print(f"[corpus_en] guía no pudo generarse ({type(e).__name__}: {e}); "
-                  "corré de nuevo con --guide cuando haya proveedor")
+            print(f"[corpus_en] the guide could not be built ({type(e).__name__}: {e}); "
+                  "run again with --guide when a provider is up")
 
 
 if __name__ == "__main__":

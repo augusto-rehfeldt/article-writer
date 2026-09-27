@@ -108,15 +108,15 @@ def oauth_cost_label(model: str) -> str:
     if not entry:
         return ""
     inp, out, tier = entry
-    return f"~${inp:.2f}/${out:.2f} por Mtok (API) · requiere {tier}"
+    return f"~${inp:.2f}/${out:.2f} per Mtok (API) · requires {tier}"
 
 
 def oauth_value_summary() -> str:
     """One-line value estimate: what the subscription buys vs. paying per token."""
     # A typical article run costs ~100k tokens; at gpt-6-sol rates that is ~$0.60.
     # 25 articles/month ≈ $15 at API rates vs $20 for Plus.
-    return ("Plus $20/mo ≈ $15/mo en tokens a precio API para ~25 artículos; "
-            "conviene desde ~35 artículos/mes. Pro $100 da 5× el límite y Astra")
+    return ("Plus $20/mo ≈ $15/mo of tokens at API prices for ~25 articles; "
+            "worth it from ~35 articles/month. Pro $100 gives 5× the limit and Astra")
 
 _HYPER_MODELS = ["qwen3.8-max", "qwen3.7-max", "deepseek-v4-pro-0813",
                  "deepseek-v4-flash-0731", "deepseek-v4.1-flash", "qwen3.8-flash",
@@ -146,7 +146,7 @@ _G4F_MODELS = ["deepseek-v4-pro", "deepseek-v4.1-flash", "glm-5.3", "glm-5.3-fla
 # for a model it does not know skips it and walks on down the chain. That is what
 # keeps the judges off Claude when Claude is doing the writing.
 PROVIDERS: dict[str, dict] = {
-    "claude": {"label": "Claude Code CLI — corre en tu suscripción, sin clave",
+    "claude": {"label": "Claude Code CLI — runs on your subscription, no key",
                "pro": "claude-opus-5-5", "flash": "sonnet", "exclusive": True,
                "alias": CLAUDE_ALIAS,
                "models": ["opus", "sonnet", "haiku",
@@ -156,18 +156,18 @@ PROVIDERS: dict[str, dict] = {
                "pro": "qwen3.8-flash", "flash": "deepseek-v4.1-flash",
                "exclusive": False, "alias": {}, "models": _HYPER_MODELS,
                "base_url": BASE_URL, "key_env": "AW_API_KEY"},
-    "zen":    {"label": "OpenCode Zen — API directa de opencode.ai/zen (OPENCODE_API_KEY)",
+    "zen":    {"label": "OpenCode Zen — direct API at opencode.ai/zen (OPENCODE_API_KEY)",
                "pro": "glm-5.3-flash", "flash": "deepseek-v4.1-flash",
                # gpt/gemini/claude ids on zen speak /responses and /messages,
                # not the chat-completions surface this module uses.
                "skip_live": r"^(gpt|gemini|claude|o\d)",
                "exclusive": False, "alias": ZEN_ALIAS, "models": _ZEN_MODELS,
                "base_url": _ZEN_BASE_URL, "key_env": "OPENCODE_API_KEY"},
-    "grok":   {"label": "xAI Grok — API directa de x.ai (XAI_API_KEY)",
+    "grok":   {"label": "xAI Grok — direct API at x.ai (XAI_API_KEY)",
                "pro": "grok-4", "flash": "grok-4-fast",
                "exclusive": False, "alias": {}, "models": _GROK_MODELS,
                "base_url": _GROK_BASE_URL, "key_env": "XAI_API_KEY"},
-    "g4f":    {"label": "gpt4free — servidor local `g4f api`, gratis, sin clave",
+    "g4f":    {"label": "gpt4free — local `g4f api` server, free, no key",
                "pro": "deepseek-v4-pro", "flash": "glm-5.3",
                "exclusive": False, "alias": {}, "models": _G4F_MODELS,
                # g4f hands any bearer but its own G4F_API_KEY to its backends.
@@ -176,7 +176,7 @@ PROVIDERS: dict[str, dict] = {
     "go": {"label": "opencode CLI local — contra opencode-go",
            "pro": "qwen3.8-flash", "flash": "deepseek-v4.1-flash",
            "exclusive": False, "alias": OPENCODE_ALIAS, "models": _HYPER_MODELS},
-    "oauth":  {"label": "openai-oauth — proxy local con tu cuenta de ChatGPT",
+    "oauth":  {"label": "openai-oauth — local proxy on your ChatGPT account",
                "pro": "gpt-6-sol", "flash": "gpt-6-luna",
                "exclusive": True, "alias": {},
                "models": ["gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4", "gpt-5.4-mini",
@@ -310,9 +310,9 @@ def _as(backend: str, model: str) -> str:
 def describe() -> str:
     backups = " ".join(f"{b}={PROVIDERS[b]['pro']}/{PROVIDERS[b]['flash']}"
                        for b in CHAIN[1:])
-    judges = "juez" if len(JUDGES) == 1 else "jueces"
+    judges = "judge" if len(JUDGES) == 1 else "judges"
     return (f"{' → '.join(CHAIN)} | PRO={PRO} FLASH={FLASH}"
-            + (f" | respaldos: {backups}" if backups else "")
+            + (f" | backups: {backups}" if backups else "")
             + f" | {judges}={', '.join(JUDGES)}")
 
 
@@ -490,8 +490,8 @@ def _send(backend: str, model: str, prompt: str, system: str | None, *,
             if not key and not spec.get("keyless"):
                 # RuntimeError, not SystemExit: this provider may be one link in a
                 # chain, and a missing key here has to let the next one try.
-                raise RuntimeError(f"falta la clave para {backend}: poné "
-                                   f"{spec.get('key_env', 'AW_API_KEY')}=sk-... en article-writer/.env")
+                raise RuntimeError(f"missing key for {backend}: set "
+                                   f"{spec.get('key_env', 'AW_API_KEY')}=sk-... in article-writer/.env")
             if key:
                 overrides["api_key"] = key
     out = shared_service(provider, overrides).generate_content(
@@ -499,9 +499,9 @@ def _send(backend: str, model: str, prompt: str, system: str | None, *,
         max_completion_tokens=max_tokens, max_retries=retries, wait_for_limits=wait)
     out = (out or "").strip()
     if not out:
-        raise RuntimeError(f"{backend}/{model} no devolvió texto")
+        raise RuntimeError(f"{backend}/{model} returned no text")
     if _quota_notice(out):
-        raise RuntimeError(f"{backend}/{model} sin cuota: {out}")
+        raise RuntimeError(f"{backend}/{model} out of quota: {out}")
     return out
 
 
@@ -525,22 +525,22 @@ def resolve_choice(raw: str, options: list[str]) -> str:
 def _recover() -> None:
     """Interactive recovery after every link of the chain failed: hold or change."""
     while True:
-        raw = input("\n¿[e]sperar 30s y reintentar, [c]ambiar proveedor/modelo, "
-                    "[a]bortar? ").strip().lower()
-        if raw.startswith("e"):
+        raw = input("\n[w]ait 30s and retry, [c]hange provider/model, "
+                    "[a]bort? ").strip().lower()
+        if raw.startswith("w"):
             time.sleep(30)
             return
         if raw.startswith("a"):
-            raise KeyboardInterrupt("abortado por el usuario")
+            raise KeyboardInterrupt("aborted by the user")
         if raw.startswith("c"):
             provs = list(PROVIDERS)
-            print("\nProveedores:")
+            print("\nProviders:")
             for i, k in enumerate(provs, 1):
                 print(f"  {i}) {k:<9} {PROVIDERS[k]['label']}")
-            prov = resolve_choice(input(f"Proveedor [{'|'.join(provs)}]: ").strip(), provs)
+            prov = resolve_choice(input(f"Provider [{'|'.join(provs)}]: ").strip(), provs)
             while not prov:
-                print(f"Inválido. Elegí 1-{len(provs)} o uno de {provs}.")
-                prov = resolve_choice(input(f"Proveedor [{'|'.join(provs)}]: ").strip(), provs)
+                print(f"Invalid. Pick 1-{len(provs)} or one of {provs}.")
+                prov = resolve_choice(input(f"Provider [{'|'.join(provs)}]: ").strip(), provs)
             # Lazy import: main imports llm, so a module-level import would be
             # circular. pick_pair prints the provider's live catalogue and asks
             # for PRO/FLASH exactly like the wizard does.
@@ -551,7 +551,7 @@ def _recover() -> None:
             return
 
 
-# Seconds between «sigue corriendo» ticks while a model call holds the console.
+# Seconds between «still running» ticks while a model call holds the console.
 # A single completion can take minutes and prints nothing, which is
 # indistinguishable from a hang; this says who owns the silence and for how long.
 HEARTBEAT = int(os.environ.get("AW_HEARTBEAT", "60"))
@@ -584,7 +584,7 @@ def _heartbeat(label: str) -> threading.Event:
         while not stop.wait(HEARTBEAT):
             waited += HEARTBEAT
             try:
-                ui.status(f"[llm] {label}: sigue corriendo ({waited}s)…")
+                ui.status(f"[llm] {label}: still running ({waited}s)…")
             except Exception:  # noqa: BLE001 - a dying console must not raise
                 return
 
@@ -605,7 +605,7 @@ def chat(model: str, prompt: str, system: str | None = None, *,
         target = _as(backend, model)
         try:
             ui.status(f"[llm] {model} → {backend}/{target} "
-                   f"(prompt de {len(prompt.split()):,} palabras)…")
+                   f"({len(prompt.split()):,}-word prompt)…")
             started = time.time()
             beat = _heartbeat(target)
             try:
@@ -617,16 +617,16 @@ def chat(model: str, prompt: str, system: str | None = None, *,
                             wait=last and not INTERACTIVE)
             finally:
                 beat.set()
-            ui.status(f"[llm] {target} respondió en {time.time() - started:.0f}s "
-                   f"({len(out.split())} palabras)")
+            ui.status(f"[llm] {target} answered in {time.time() - started:.0f}s "
+                   f"({len(out.split())} words)")
             return out
         except Exception as e:  # noqa: BLE001 - that is what the next link is for
             errors.append(f"{backend}/{target}: {type(e).__name__}: {e}")
             if i + 1 < len(CHAIN):
-                ui.log(f"[error] {backend} no responde para {target}; sigo por "
+                ui.log(f"[error] {backend} not answering for {target}; moving on to "
                       f"{CHAIN[i + 1]}")
-    failure = RuntimeError(f"ningún proveedor respondió para {model} — "
-                           + " | ".join(errors or ["cadena vacía"]))
+    failure = RuntimeError(f"no provider answered for {model} — "
+                           + " | ".join(errors or ["empty chain"]))
     if INTERACTIVE and threading.current_thread() is threading.main_thread():
         # The caller asked for a role, not a literal id: if the recovery
         # repointed PRO/FLASH, the retry must chase the new ones instead of
@@ -650,15 +650,15 @@ def chat_json(model: str, prompt: str, system: str | None = None,
     Models wrap JSON in prose or fences often enough that a tolerant extractor
     beats strict parsing; the second pass only fires when extraction fails.
     """
-    sys_msg = (system or "") + "\n\nResponde EXCLUSIVAMENTE con JSON válido, sin texto adicional."
+    sys_msg = (system or "") + "\n\nAnswer ONLY with valid JSON, no extra text."
     raw = chat(model, prompt, sys_msg.strip(), **kw)
     for candidate in _json_candidates(raw):
         try:
             return json.loads(candidate)
         except json.JSONDecodeError:
             continue
-    repaired = chat(model, f"Convierte esto en JSON válido y nada más:\n\n{raw[:20000]}",
-                    "Devuelve solo JSON.", temperature=0.0)
+    repaired = chat(model, f"Convert this into valid JSON and nothing else:\n\n{raw[:20000]}",
+                    "Return only JSON.", temperature=0.0)
     for candidate in _json_candidates(repaired):
         try:
             return json.loads(candidate)

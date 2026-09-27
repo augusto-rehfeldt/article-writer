@@ -30,17 +30,17 @@ ENABLED = bool(getattr(sys.stdout, "isatty", lambda: False)()) and not os.enviro
 
 # One colour per pipeline stage, so a long run reads as bands instead of a wall.
 TAGS = {
-    "tema": MAGENTA,
-    "investigación": BLUE,
-    "bibliografía": BLUE,
-    "esquema": CYAN,
-    "borrador": CYAN,
-    "revisión": YELLOW,
+    "topic": MAGENTA,
+    "research": BLUE,
+    "bibliography": BLUE,
+    "outline": CYAN,
+    "draft": CYAN,
+    "review": YELLOW,
     "detector": YELLOW,
-    "aprobación": GREEN,
-    "publicación": GREEN,
-    "continuo": MAGENTA,
-    "retomar": DIM,
+    "approval": GREEN,
+    "publish": GREEN,
+    "continuous": MAGENTA,
+    "resume": DIM,
     "error": RED,
 }
 
@@ -73,12 +73,12 @@ _LAST_TAG: str | None = None
 
 # Auto runs (set by main): model-call lines, heartbeats, «· detail» bullets and
 # cache hits stop scrolling and share one status line redrawn in place. Stage
-# lines ([tema], [borrador]…) and errors still print. Off = the full log.
+# lines ([topic], [draft]…) and errors still print. Off = the full log.
 COMPACT = False
 TTY = bool(getattr(sys.stdout, "isatty", lambda: False)())
 _LOCK = threading.RLock()
 _STATUS = False
-# On a tty the latest progress bar ([borrador] [###...] 2/6 …) is pinned as the
+# On a tty the latest progress bar ([draft] [###...] 2/6 …) is pinned as the
 # bottom line and redrawn in place; the log scrolls above it. A different stage
 # tag unpins it.
 _BAR = ""
@@ -94,7 +94,7 @@ def _chatter(msg: str) -> bool:
     if _is_bar(first):  # bars have their own pinned line
         return False
     return (first.lstrip().startswith("·") or first.startswith("[llm]")
-            or "reutilizando" in first or "en caché" in first
+            or "reusing" in first or "cached" in first
             or first.rstrip().endswith("…")  # «doing X…» announcements
             or (first[:1] == " " and not first.lstrip().startswith("[")))  # indented detail
 
@@ -134,7 +134,7 @@ def progress_bar(done: int, total: int, width: int = 20) -> str:
 
 
 def log(msg: str = "") -> None:
-    """print() with the [etapa] prefix, separators and bullets coloured.
+    """print() with the [stage] prefix, separators and bullets coloured.
 
     A blank line separates each change of stage tag, so a long run reads as
     blocks instead of a wall of text.
@@ -178,32 +178,32 @@ def demo() -> None:
     import io
     tty, out, TTY, sys.stdout = TTY, sys.stdout, True, io.StringIO()
     try:
-        log("[borrador] [#...] 1/4 intro (500p)…")
-        log("[borrador] [##..] 2/4 dos (500p)…")
-        assert "\n" not in sys.stdout.getvalue() and _BAR.endswith("dos (500p)…")
-        log("[borrador] 900 palabras o idioma incorrecto; reintento")
-        assert _BAR and sys.stdout.getvalue().rstrip().endswith("dos (500p)…")
-        log("[revisión] veredicto")
+        log("[draft] [#...] 1/4 intro (500w)…")
+        log("[draft] [##..] 2/4 two (500w)…")
+        assert "\n" not in sys.stdout.getvalue() and _BAR.endswith("two (500w)…")
+        log("[draft] 900 words or wrong language; retrying")
+        assert _BAR and sys.stdout.getvalue().rstrip().endswith("two (500w)…")
+        log("[review] verdict")
         assert _BAR == ""
     finally:
         TTY, sys.stdout, _BAR = tty, out, ""
         globals()["_STATUS"] = False
-    assert _line("hola") == "hola"
+    assert _line("hello") == "hello"
     if not ENABLED:  # nothing else is observable with colour off
         return
-    assert _line("[tema] x") == c("[tema]", BOLD, MAGENTA) + " x"
+    assert _line("[topic] x") == c("[topic]", BOLD, MAGENTA) + " x"
     assert _line("  [detector] y").startswith("  ")
-    assert _line("[loquesea] z").startswith(BOLD + CYAN)
-    assert _line("  · nota").startswith(DIM)
+    assert _line("[whatever] z").startswith(BOLD + CYAN)
+    assert _line("  · note").startswith(DIM)
     assert _line("─────").startswith(CYAN)
-    log("[tema] «Un título»\n  · una nota\n─────\n[error] algo falló")
+    log("[topic] «A title»\n  · a note\n─────\n[error] something failed")
     assert progress_bar(2, 4, 4) == "[##..] 2/4"
-    assert _chatter("  · juez x: 80% IA") and _chatter("[llm] a → b")
-    assert _chatter("[borrador] intro en caché (300p)")
-    assert _chatter("[esquema] auditoría del esquema por PRO…")
-    assert _chatter("  hipótesis: algo")
-    assert not _chatter("[borrador] [##..] 1/3 intro (500p)…")
-    assert not _chatter("[revisión] veredicto: ok (80/100)")
+    assert _chatter("  · judge x: 80% AI") and _chatter("[llm] a → b")
+    assert _chatter("[draft] intro cached (300w)")
+    assert _chatter("[outline] PRO audits the outline…")
+    assert _chatter("  hypothesis: something")
+    assert not _chatter("[draft] [##..] 1/3 intro (500w)…")
+    assert not _chatter("[review] verdict: ok (80/100)")
 
 
 if __name__ == "__main__":

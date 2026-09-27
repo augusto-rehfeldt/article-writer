@@ -28,7 +28,7 @@ from dotenv import load_dotenv
 ROOT = pathlib.Path(__file__).parent
 load_dotenv(ROOT / ".env")
 
-# Windows consoles default to cp1252 and choke on « » — this pipeline is all Spanish.
+# Windows consoles default to cp1252 and choke on « » and other non-ASCII output.
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
@@ -52,7 +52,7 @@ def ask_choice(prompt: str, options: list[str], default: str) -> str:
             or default, options)
         if pick:
             return pick
-        print(ui.c(f"Inválido. Elegí 1-{len(options)} o uno de {options}.", ui.RED))
+        print(ui.c(f"Invalid. Pick 1-{len(options)} or one of {options}.", ui.RED))
 
 
 def ask_free(prompt: str, options: list[str], default: str) -> str:
@@ -68,16 +68,16 @@ def ask_free(prompt: str, options: list[str], default: str) -> str:
 
 
 def ask_order(prompt: str, options: list[str], default: str) -> list[str]:
-    """A comma-separated ordered subset. «no» = empty list."""
+    """A comma-separated ordered subset. «no» / «none» = empty list."""
     while True:
         raw = input(f"{ui.c(prompt, ui.BOLD)} {ui.c('[' + default + ']', ui.DIM)}: ").strip()
         raw = raw or default
-        if raw.lower() in ("no", "ninguno", "-"):
+        if raw.lower() in ("no", "none", "ninguno", "-"):
             return []
         picks = [resolve_choice(x.strip(), options) for x in raw.split(",") if x.strip()]
         if all(picks):
             return list(dict.fromkeys(picks))
-        print(ui.c(f"Inválido. Nombres o números de {options}, separados por coma.", ui.RED))
+        print(ui.c(f"Invalid. Names or numbers from {options}, comma-separated.", ui.RED))
 
 
 def save_env(pairs: dict[str, str], path: pathlib.Path = ROOT / ".env") -> None:
@@ -104,13 +104,13 @@ def edit_interests(read=input) -> None:
     f = pipeline.INTERESTS_FILE
     if not f.exists():
         f.write_text(pipeline.INTERESTS_EXAMPLE.read_text(encoding="utf-8"), encoding="utf-8")
-    print(ui.c(f"Intereses del autor ({f}):", ui.BOLD))
+    print(ui.c(f"Author interests ({f}):", ui.BOLD))
     for area in pipeline.interest_areas():
         print(f"  - {area}")
     if not sys.stdin.isatty() and read is input:
         return
-    first = read("\n¿Reemplazarlos? Escribí un área por línea y una línea vacía para "
-                 "terminar (Enter directo = dejarlos así; también podés editar el archivo): ").strip()
+    first = read("\nReplace them? Type one area per line and an empty line to "
+                 "finish (Enter right away = keep them; you can also edit the file): ").strip()
     if not first:
         return
     areas = [first]
@@ -119,7 +119,7 @@ def edit_interests(read=input) -> None:
     header = [ln for ln in pipeline.INTERESTS_EXAMPLE.read_text(encoding="utf-8").splitlines()
               if ln.startswith("#")]
     f.write_text("\n".join(header + areas) + "\n", encoding="utf-8")
-    print(ui.c(f"Guardados {len(areas)} intereses en {f.name}.", ui.GREEN))
+    print(ui.c(f"Saved {len(areas)} interests to {f.name}.", ui.GREEN))
 
 
 def pick_pair(prov: str) -> tuple[str, str]:
@@ -139,24 +139,24 @@ def pick_pair(prov: str) -> tuple[str, str]:
         return pro, flash
     catalogue = llm.catalogue(prov)
     live = [m for m in catalogue if m not in llm.PROVIDERS[prov]["models"]]
-    print("\n" + ui.c(f"Modelos de {prov}:", ui.BOLD) + " "
-          + ui.c("(o escribí cualquier otro nombre)", ui.DIM))
+    print("\n" + ui.c(f"{prov} models:", ui.BOLD) + " "
+          + ui.c("(or type any other name)", ui.DIM))
     if prov == "oauth":
         print(ui.c("  " + llm.oauth_value_summary(), ui.DIM))
     if live:
-        print(ui.c(f"  ({len(live)} además de los de siempre, leídos del proveedor ahora)",
+        print(ui.c(f"  ({len(live)} beyond the usual ones, read from the provider just now)",
                    ui.DIM))
     for i, m in enumerate(catalogue, 1):
-        mark = ui.c(" nuevo", ui.GREEN) if m in live else ""
+        mark = ui.c(" new", ui.GREEN) if m in live else ""
         if m.endswith("-free"):
-            mark += ui.c(" gratis", ui.GREEN)
+            mark += ui.c(" free", ui.GREEN)
         cost = llm.oauth_cost_label(m) if prov == "oauth" else ""
         if cost:
             mark += ui.c("  " + cost, ui.DIM)
         print(f"  {ui.c(str(i) + ')', ui.CYAN)} {m}{mark}")
-    pro = ask_free("PRO   — tema, auditoría del esquema, revisión, aprobación",
+    pro = ask_free("PRO   — topic, outline audit, review, approval",
                    catalogue, llm.PROVIDERS[prov]["pro"])
-    flash = ask_free("FLASH — consultas, esquema, redacción, reescritura",
+    flash = ask_free("FLASH — queries, outline, drafting, rewriting",
                      catalogue, llm.PROVIDERS[prov]["flash"])
     return pro, flash
 
@@ -165,31 +165,31 @@ def pick_models() -> None:
     """Provider, models and backup order. Writes straight into llm's router."""
     before = (tuple(llm.CHAIN), llm.PRO, llm.FLASH)
     provs = list(llm.PROVIDERS)
-    print("\n" + ui.c("Proveedores:", ui.BOLD))
+    print("\n" + ui.c("Providers:", ui.BOLD))
     for i, k in enumerate(provs, 1):
         p = llm.PROVIDERS[k]
         print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k:<9} {ui.c(p['label'], ui.DIM)}")
-        print(f"     {ui.c('por defecto: PRO=' + p['pro'] + '  FLASH=' + p['flash'], ui.DIM)}")
+        print(f"     {ui.c('default: PRO=' + p['pro'] + '  FLASH=' + p['flash'], ui.DIM)}")
         if k == "oauth":
             print(f"     {ui.c(llm.oauth_value_summary(), ui.DIM)}")
-    main_prov = ask_choice("Proveedor principal", provs, llm.CHAIN[0])
+    main_prov = ask_choice("Main provider", provs, llm.CHAIN[0])
 
     pro, flash = pick_pair(main_prov)
 
     rest = [p for p in provs if p != main_prov]
-    print("\n" + ui.c("Respaldos", ui.BOLD) + ui.c(
-        " — en orden, separados por coma; «no» para ninguno.", ui.DIM))
+    print("\n" + ui.c("Backups", ui.BOLD) + ui.c(
+        " — in order, comma-separated; «no» for none.", ui.DIM))
     for i, k in enumerate(rest, 1):
         print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k}")
-    backups = ask_order("Respaldos", rest, ",".join(rest))
+    backups = ask_order("Backups", rest, ",".join(rest))
 
     # Each backup answers with its own pair; asking for all of them every time is
     # six extra prompts for a chain that usually never gets used, so it is opt-in.
     models: dict[str, tuple[str, str]] = {}
     if backups and input(
-            f"{ui.c('¿Elegir los modelos de los respaldos?', ui.BOLD)} "
-            f"{ui.c('(Enter = los de cada proveedor)', ui.DIM)} [s/N]: "
-    ).strip().lower().startswith("s"):
+            f"{ui.c('Pick the backups\' models?', ui.BOLD)} "
+            f"{ui.c('(Enter = each provider\'s defaults)', ui.DIM)} [y/N]: "
+    ).strip().lower().startswith(("y", "s")):
         for b in backups:
             models[b] = pick_pair(b)
 
@@ -205,30 +205,32 @@ def pick_models() -> None:
         pairs["AW_MODELS"] = ",".join(
             f"{b}:{llm.PROVIDERS[b]['pro']}/{llm.PROVIDERS[b]['flash']}"
             for b in models)
-    if input(f"{ui.c('¿Guardar como predeterminado en .env?', ui.BOLD)} [s/N]: "
-             ).strip().lower().startswith("s"):
+    if input(f"{ui.c('Save as default in .env?', ui.BOLD)} [y/N]: "
+             ).strip().lower().startswith(("y", "s")):
         save_env(pairs)
-        print(ui.c("  guardado.", ui.GREEN))
+        print(ui.c("  saved.", ui.GREEN))
 
 
 def wizard(args: argparse.Namespace) -> argparse.Namespace:
-    print("\n" + ui.rule("Escritor de artículos de ciencias sociales"))
+    print("\n" + ui.rule("Social-science article writer"))
     pick_models()
-    print("\n" + ui.c("Formatos:", ui.BOLD))
+    print("\n" + ui.c("Formats:", ui.BOLD))
     fmts = list(pipeline.FORMATS)
     for i, k in enumerate(fmts, 1):
         v = pipeline.FORMATS[k]
-        print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k:<10} {pipeline.wrange(v):>15} palabras "
+        print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k:<10} {pipeline.wrange(v):>17} words "
               f"— {ui.c(v['kind'], ui.DIM)}")
-    args.fmt = ask_choice("Formato", fmts, args.fmt)
-    print("\n" + ui.c("Modos:", ui.BOLD))
-    print(f"  {ui.c('1)', ui.CYAN)} auto      de punta a punta sin preguntar")
-    print(f"  {ui.c('2)', ui.CYAN)} asistido  te consulta en tema, esquema, correcciones y aprobación")
-    args.mode = ask_choice("Modo", ["auto", "asistido"], args.mode)
-    args.tema = input("\nTema o pista temática (Enter = que lo elija el modelo): ").strip()
+    args.fmt = ask_choice("Format", fmts, args.fmt)
+    print("\n" + ui.c("Modes:", ui.BOLD))
+    print(f"  {ui.c('1)', ui.CYAN)} auto      end to end, no questions")
+    print(f"  {ui.c('2)', ui.CYAN)} assisted  asks you at topic, outline, corrections and approval")
+    args.mode = {"assisted": "asistido"}.get(
+        ask_choice("Mode", ["auto", "assisted"],
+                   "assisted" if args.mode == "asistido" else args.mode), "auto")
+    args.tema = input("\nTopic or thematic hint (Enter = let the model pick): ").strip()
     if args.tema:
         args.tema_exacto = input(
-            "¿Escribo sobre ESE tema tal cual, sin proponerte alternativas? [S/n]: "
+            "Write on THAT exact topic, without proposing alternatives? [Y/n]: "
         ).strip().lower() not in ("n", "no")
     print()
     return args
@@ -272,10 +274,10 @@ def latest_run() -> str:
 def resume_hint() -> None:
     run = CURRENT
     if run is None or run.dir == pipeline.OUTPUT:
-        print("\nDetenido antes de elegir tema; no hay nada que retomar.", flush=True)
+        print("\nStopped before picking a topic; nothing to resume.", flush=True)
         return
-    print(f"\nDetenido. Cada etapa terminada quedó en {run.dir}"
-          f"\nPara retomar: python main.py --resume", flush=True)
+    print(f"\nStopped. Every finished stage is saved in {run.dir}"
+          f"\nTo resume: python main.py --resume", flush=True)
 
 
 def adopt(run: pipeline.Run) -> None:
@@ -297,7 +299,7 @@ def run_once(args: argparse.Namespace, resume: str = "",
     if resume:
         run.dir = pathlib.Path(resume)
         adopt(run)
-        ui.log(f"[retomar] {run.dir}")
+        ui.log(f"[resume] {run.dir}")
     threshold = 101.0 if args.no_detector else args.threshold
     pipeline.run_pipeline(run, rounds=args.rounds,
                           detector_rounds=0 if args.no_detector else args.detector_rounds,
@@ -320,8 +322,8 @@ def loop(args: argparse.Namespace) -> int:
     initial_resume = getattr(args, "resume", "") or ""
     brief = args.tema   # --topic steers the first new article only; the rest pick their own
     while n == 0 or done + failures < n:
-        print("\n" + ui.rule(f"artículo {done + failures + 1}"
-                             f"{'' if n == 0 else f' de {n}'}"))
+        print("\n" + ui.rule(f"article {done + failures + 1}"
+                             f"{'' if n == 0 else f' of {n}'}"))
         run, resumable = resumable, None
         retry = run is not None
         if run is None:
@@ -334,22 +336,22 @@ def loop(args: argparse.Namespace) -> int:
             if initial_resume:
                 run.dir = pathlib.Path(initial_resume)
                 adopt(run)
-                ui.log(f"[continuo] retomo: {run.dir}")
+                ui.log(f"[continuous] resuming: {run.dir}")
                 retry = True
                 initial_resume = ""
         else:
-            ui.log(f"[continuo] retomo la corrida caída: {run.dir}")
+            ui.log(f"[continuous] resuming the crashed run: {run.dir}")
         ok = False
         try:
             run_once(args, run=run)
             done, ok = done + 1, True
         except KeyboardInterrupt:
-            ui.log("\n[continuo] cortado a mano.")
+            ui.log("\n[continuous] stopped by hand.")
             break
         except Exception:  # noqa: BLE001 - one bad topic must not end the loop
             failures += 1
             traceback.print_exc()
-            ui.log(f"[continuo] ese artículo falló ({failures} en total); sigo.")
+            ui.log(f"[continuous] that article failed ({failures} so far); carrying on.")
             # Stages are cached per file, so an article that died after research
             # is hours of work sitting on disk — the next cycle picks it up where
             # it stopped. Once only: a run that fails twice is broken, not
@@ -360,13 +362,13 @@ def loop(args: argparse.Namespace) -> int:
         # failed cycle always waits, a successful one honours --every as given.
         wait = args.cada * 60 if ok else max(args.cada * 60, 60)
         if (n == 0 or done + failures < n) and wait:
-            ui.log(f"[continuo] espero {wait // 60} min hasta el próximo.")
+            ui.log(f"[continuous] waiting {wait // 60} min until the next one.")
             try:
                 time.sleep(wait)
             except KeyboardInterrupt:
-                ui.log("\n[continuo] cortado a mano.")
+                ui.log("\n[continuous] stopped by hand.")
                 break
-    ui.log(f"\n[continuo] {done} publicados, {failures} fallidos.")
+    ui.log(f"\n[continuous] {done} published, {failures} failed.")
     return 1 if failures and not done else 0
 
 
@@ -433,7 +435,7 @@ def main() -> int:
         if not args.resume:
             ui.log("[error] no previous run to resume in output/")
             return 1
-        ui.log(f"[retomar] latest run: {args.resume}")
+        ui.log(f"[resume] latest run: {args.resume}")
     pipeline.LANG = humanize.LANG = args.lang or "en"
     if args.borrador:
         pipeline.DRAFT_ROLE = args.borrador
@@ -457,33 +459,33 @@ def main() -> int:
             backups = [b for b in llm.CHAIN if b != head]
         llm.configure([head, *backups], args.pro, args.flash,
                       llm.parse_models(args.modelos))
-    ui.log(f"[modelos] {llm.describe()}")
+    ui.log(f"[models] {llm.describe()}")
 
     if args.setup:
         edit_interests()
         import scrape_corpus
         scrape_corpus.main()
         print(style.build_guide(refresh=True)[:1200])
-        print("\n" + ui.c(f"Guía completa en {style.GUIDE}", ui.GREEN))
+        print("\n" + ui.c(f"Full guide at {style.GUIDE}", ui.GREEN))
         return 0
 
     if args.detect:
         text = pathlib.Path(args.detect).read_text(encoding="utf-8")
-        print("\n" + ui.rule(f"detección de IA — {args.detect}"))
+        print("\n" + ui.rule(f"AI detection — {args.detect}"))
         # Score against the calibration the file is written in; a Spanish corpus
         # says nothing about an English text and vice versa.
         from build_corpus_en import is_english
         lang = args.lang or ("en" if is_english(text) else "es")
         local = humanize.local_score(text, lang=lang)
         score = local["score"]
-        print("\nEstilometría local ({}): ".format(
-            "inglés" if lang == "en" else "español")
+        print("\nLocal stylometry ({}): ".format(
+            "English" if lang == "en" else "Spanish")
               + ui.c(f"{score}/100", ui.BOLD, ui.GREEN if score < 35 else ui.RED))
         for i in local["issues"]:
             ui.log(f"  · {i}")
-        ui.log("[detector] jueces LLM:")
+        ui.log("[detector] LLM judges:")
         humanize.llm_judges(text, lang=lang)
-        ui.log("[detector] detectores externos:")
+        ui.log("[detector] external detectors:")
         humanize.external_detectors(text, lang=lang)
         return 0
 
@@ -497,16 +499,16 @@ def main() -> int:
         style.build_guide(refresh=True, lang=pipeline.LANG)
 
     if pipeline.LANG == "es" and not style.GUIDE.exists():
-        ui.log("[error] falta la guía de estilo. Corré primero: python main.py --setup")
+        ui.log("[error] the style guide is missing. Run first: python main.py --setup")
         return 1
 
     if args.wizard or len(sys.argv) == 1:
         args = wizard(args)
 
     if args.publicar != "no" and not publish.configured():
-        ui.log("[error] falta la configuración del destino de publicación: "
-               "DEVTO_API_KEY (AW_PUBLISH_TARGET=devto) o AW_WP_URL, AW_WP_USER, "
-               "AW_WP_APP_PASSWORD en .env. Corré sin --publish o completala.")
+        ui.log("[error] the publishing target is not configured: "
+               "DEVTO_API_KEY (AW_PUBLISH_TARGET=devto) or AW_WP_URL, AW_WP_USER, "
+               "AW_WP_APP_PASSWORD in .env. Run without --publish or fill it in.")
         return 1
 
     ui.COMPACT = args.mode == "auto" or args.continuo is not None

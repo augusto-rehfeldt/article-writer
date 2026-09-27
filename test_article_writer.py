@@ -151,7 +151,7 @@ def test_fingerprint_detects_uniform_prose() -> None:
 def test_corpus_fingerprint_is_bursty() -> None:
     """The author's real prose must land well above the LLM-flat baseline."""
     if not style.FINGERPRINT.exists():
-        print("  (saltado: falta style_fingerprint.json — corré --setup)")
+        print("  (skipped: style_fingerprint.json missing — run --setup)")
         return
     fp = style.corpus_fingerprint()
     assert fp["burstiness"] > 0.5, fp["burstiness"]
@@ -190,7 +190,7 @@ def test_formats_cover_every_requested_length() -> None:
         assert hi / nhi >= 400                      # no section budgeted into nothing
         assert lo / nlo <= 10000                    # nor past the per-section ceiling
         assert spec["register"].strip()
-        assert pipeline.wrange(spec) == f"{lo:,} y {hi:,}".replace(",", ".")
+        assert pipeline.wrange(spec) == f"{lo:,} and {hi:,}"
         assert lo < pipeline.wmid(spec) < hi
 
 
@@ -351,7 +351,7 @@ def test_a_format_without_apparatus_gets_no_footnotes() -> None:
     corto = pipeline._apparatus_rules(pipeline.FORMATS["corto"], 1400, 1)
     assert corto == ""
     paper = pipeline._apparatus_rules(pipeline.FORMATS["paper"], 1400, 7)
-    assert "NOTAS:" in paper and "[7]" in paper   # numbering continues across sections
+    assert "NOTES:" in paper and "[7]" in paper   # numbering continues across sections
 
 
 def test_local_score_separates_the_floors_from_the_real_defects() -> None:
@@ -361,7 +361,7 @@ def test_local_score_separates_the_floors_from_the_real_defects() -> None:
     flat = ("La forma piensa y el valor se mide en el mercado abierto. " * 40)
     d = humanize.local_score(flat, lang="es")
     assert d["score"] > 0 and len(d["issues_texto"]) < len(d["issues"])
-    assert not any("piso humano" in m or "burstiness" in m for m in d["issues_texto"])
+    assert not any("human floor" in m or "burstiness" in m for m in d["issues_texto"])
 
 
 def test_chunks_splits_a_long_section_by_subsection() -> None:
@@ -379,7 +379,7 @@ def test_chunks_splits_a_long_section_by_subsection() -> None:
     huge = pipeline._chunks({"n": 4, "palabras": 12000, "subsecciones": ["x", "y"]})
     assert [c[0] for c in huge] == ["04_01a", "04_01b", "04_01c",
                                     "04_02a", "04_02b", "04_02c"]
-    assert huge[1][1] == "x (parte 2 de 3)" and huge[1][3] == ""
+    assert huge[1][1] == "x (part 2 of 3)" and huge[1][3] == ""
     assert all(c[2] <= pipeline.MAX_CALL_WORDS for c in huge)
 
     # long but unsplittable: no subsections to cut on, so it stays one call
@@ -510,9 +510,9 @@ def test_a_claude_quota_notice_is_not_a_completion() -> None:
             try:
                 llm._send("claude", "opus", "escribí una sección", None,
                           temperature=None, max_tokens=None, retries=1)
-                raise AssertionError("una notificación de cuota no es una respuesta")
+                raise AssertionError("a quota notice is not a completion")
             except RuntimeError as e:
-                assert "sin cuota" in str(e), e
+                assert "out of quota" in str(e), e
     # ...and a real article that happens to mention limits is not thrown away.
     assert not llm._quota_notice("El límite de la jornada laboral. " * 40)
 
@@ -803,7 +803,7 @@ def test_windows_split_on_paragraph_boundaries() -> None:
 
 def test_local_score_flags_flat_prose_with_llm_tells() -> None:
     if not style.FINGERPRINT.exists():
-        print("  (saltado: falta style_fingerprint.json — corré --setup)")
+        print("  (skipped: style_fingerprint.json missing — run --setup)")
         return
     robotic = " ".join(
         ["Es importante destacar que el capital opera de este modo.",
@@ -859,7 +859,7 @@ def test_local_score_does_not_flag_the_author_himself() -> None:
     """The gate regressed once by scoring 1.500-word drafts against the 194k aggregate."""
     arts = style.articles()
     if not arts or not style.FINGERPRINT.exists():
-        print("  (saltado: falta corpus/ o style_fingerprint.json)")
+        print("  (skipped: corpus/ or style_fingerprint.json missing)")
         return
     scores = [humanize.local_score(w)["score"]
               for _, body in arts[:6] for w in style.windows(body, 1200)[:2]]
@@ -874,7 +874,7 @@ def test_local_score_penalises_explanatory_colons() -> None:
     fire on colon-heavy prose and stay silent on corpus-level density.
     """
     if not style.FINGERPRINT.exists():
-        print("  (saltado: falta style_fingerprint.json — corré --setup)")
+        print("  (skipped: style_fingerprint.json missing — run --setup)")
         return
     colon_heavy = "\n\n".join(
         f"El concepto de {w} es central en la teoría crítica: define la estructura "
@@ -886,7 +886,7 @@ def test_local_score_penalises_explanatory_colons() -> None:
                   "abstracción", "fetichismo", "alienación", "dominación", "mediación",
                   "forma", "sujeto", "lógica", "totalidad", "crítica"])
     got = humanize.local_score(colon_heavy)
-    assert any("dos puntos" in i for i in got["issues"]), \
+    assert any("explanatory colons" in i for i in got["issues"]), \
         f"colon penalty did not fire: {got['issues']}"
     assert got["score"] > 15, f"score too low for colon-heavy text: {got['score']}"
 
@@ -943,7 +943,7 @@ def test_rewrite_keeps_the_original_when_the_model_returns_a_stump() -> None:
     finally:
         llm.chat = original
     assert out.strip() == text.strip()
-    assert any("recortado" in l for l in log_lines)
+    assert any("cut or padded" in l for l in log_lines)
 
 
 def test_rewrite_keeps_the_original_block_when_the_model_fails() -> None:
@@ -1189,10 +1189,10 @@ def test_a_rejected_article_can_be_fixed_by_hand_and_re_approved() -> None:
     try:
         with tempfile.TemporaryDirectory() as d:
             def fake_ask(self, prompt: str, default: str = "") -> str:
-                if prompt.startswith("Editá"):        # the user fixes the file in place
+                if prompt.startswith("Edit the file"):        # the user fixes the file in place
                     self.save("04_draft_corregido.md", "Cuerpo limpio (Postone, 2006).")
                     return ""
-                return "e" if "No aprobado" in prompt else default
+                return "e" if "Not approved" in prompt else default
             pipeline.Run.ask = fake_ask
             run = pipeline.Run(dir=pathlib.Path(d), mode="asistido", log=lambda *_: None)
             pipeline.run_pipeline(run, rounds=1)
@@ -1251,8 +1251,8 @@ def test_every_prompt_renders_with_what_the_pipeline_passes() -> None:
     finally:
         llm.chat, llm.chat_json, style.style_block = saved
     joined = "\n".join(seen)
-    for marker in ("REGISTRO DEL FORMATO", "PROHIBIDO volver a escribirlas",
-                   "REPETICIONES LITERALES", "REGISTRO EXIGIDO POR EL FORMATO"):
+    for marker in ("THE FORMAT'S REGISTER", "FORBIDDEN to write them again",
+                   "VERBATIM REPETITIONS", "REGISTER REQUIRED BY THE FORMAT"):
         assert marker in joined, marker
 
 
@@ -1266,7 +1266,7 @@ def test_repeated_phrases_catches_a_formula_served_twice() -> None:
     assert len(hits) <= 2, hits          # one entry per repetition, not one per window
     assert not humanize.repeated_phrases(filler + "otra cosa completamente distinta aca.")
     # and the score has to notice, or the rewriter never hears about it
-    assert any("repetidas" in i for i in humanize.local_score(text)["issues"])
+    assert any("repeated" in i for i in humanize.local_score(text)["issues"])
 
 
 def test_zen_is_a_first_class_openai_compatible_provider() -> None:
@@ -1623,8 +1623,8 @@ def test_a_work_enters_the_dossier_whole() -> None:
 def test_partial_flags_a_cut_download_and_a_sample() -> None:
     whole = "Una obra entera. " * 6000                          # 102k, cierra bien
     assert research._partial(whole) == ""
-    assert "cortado" in research._partial(whole[:90000] + " y entonces la frase se")
-    assert "extracto" in research._partial("Un capítulo suelto. " * 500)
+    assert "cut off" in research._partial(whole[:90000] + " y entonces la frase se")
+    assert "excerpt" in research._partial("Un capítulo suelto. " * 500)
 
 
 def test_web_fulltext_prefers_the_whole_book_over_the_sample() -> None:
@@ -1790,7 +1790,7 @@ def test_fetch_book_refuses_a_chapter_of_a_book() -> None:
         research.LIBRARY, research._work_info = old_lib, old_info
         _restore(saved)
     assert book is None, book
-    assert any("descartado" in s for s in said), said
+    assert any("dropped" in s for s in said), said
     assert brief is chapter, brief
 
 
@@ -1955,7 +1955,7 @@ def test_rewrite_receives_neighbours_and_native_editorial_rules() -> None:
     second = next(p for p in prompts if "\nSECOND " in p.split("=== BLOCK TO REWRITE ===")[1])
     assert "FIRST" in second.split("=== BLOCK TO REWRITE ===")[0]
     assert all("Write idiomatic English" in p and "MANDATORY QUOTAS" not in p for p in prompts)
-    assert "español rioplatense natural" in style.writing_rules("es")
+    assert "natural Rioplatense Spanish" in style.writing_rules("es")
 
 
 def test_detector_unavailability_is_not_a_pass_and_local_is_diagnostic() -> None:
@@ -2214,7 +2214,7 @@ def main() -> int:
         except Exception as e:  # noqa: BLE001
             failed += 1
             print(f"ERR  {t.__name__}: {type(e).__name__}: {e}")
-    print(f"\n{len(tests) - failed}/{len(tests)} pasaron")
+    print(f"\n{len(tests) - failed}/{len(tests)} passed")
     return 1 if failed else 0
 
 

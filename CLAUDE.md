@@ -175,13 +175,22 @@ in English.
   It does not descend to «no estoy de acuerdo con X», «X se queda en la superficie»,
   «desconfío de X», irony at third parties, or frases de efecto. At most one sober
   disagreement per section, aimed at an argument and never at the person who signs it.
-  Encoded in `pipeline.SECTION_PROMPT` (TENÉ POSICIÓN, NO PLEITO), checked by
+  Encoded in `pipeline.SECTION_PROMPT` (TAKE A POSITION, NOT A FIGHT), checked by
   `REVIEW_PROMPT`, and no longer injected per block by `humanize.REWRITE_PROMPT` — the
   old per-block quota is what produced one objection every 700 words.
 
 - **English is the default language since 2026-09-27** (`--spanish` for the author's
   voice; `--english` still accepted). `pipeline.LANG`/`humanize.LANG` keep `"es"` as
   module default for the tests; `main.main()` sets `args.lang or "en"`.
+- **Prompts and console output are English since 2026-09-27**, in both languages.
+  `pipeline._lang()` appends the output-language directive to every article prompt
+  (Rioplatense Spanish + `y`/`s/f` APA conventions for `es`, `&`/`n.d.` for `en`);
+  JSON field names and enum values (`titulo`, `veredicto: aprobado`, `gravedad: alta`,
+  `señales`) and `output/` file names stay Spanish so old runs resume. Stage tags are
+  `[topic] [research] [bibliography] [outline] [draft] [review] [detector] [approval]
+  [publish] [continuous] [resume]` (`ui.TAGS`); `ui._chatter` keys on «reusing» and
+  «cached». Still Spanish, reached only under `--spanish`: `humanize.JUDGE_PROMPT`,
+  `humanize.REWRITE_PROMPT`, `style.BUILD_PROMPT`, and the `LLM_TELLS` data.
 - **`--english` is calibrated against `corpus_en/`, not against the author.**
   `pipeline.LANG`/`humanize.LANG` switch to `"en"`: every article-producing prompt
   gets an override directive appended (`pipeline._lang()`), `humanize` swaps to
