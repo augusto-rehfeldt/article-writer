@@ -628,16 +628,23 @@ def test_publish_rejects_an_invalid_status() -> None:
     raise AssertionError("un estado inválido tiene que fallar antes de postear")
 
 
-def test_make_cover_degrades_without_network() -> None:
+def test_cover_degrades_without_network_and_credits_the_pick() -> None:
     """A dead image service must not take the publish step down with it."""
-    saved = publish._COVER_URL
-    publish._COVER_URL = "http://127.0.0.1:1/"
+    saved = (publish._COMMONS_API, llm.chat_json)
+    publish._COMMONS_API = "http://127.0.0.1:1/"
+    llm.chat_json = lambda *a, **k: {"queries": ["generation ship"], "pick": 0}
     try:
-        assert publish.make_cover("Naves generacionales",
+        assert publish.find_cover("Naves generacionales", timeout=5,
+                                  log=lambda *_: None) is None
+        assert publish.make_cover({"url": "http://127.0.0.1:1/x.jpg"},
                                   timeout=5, log=lambda *_: None) is None
-        assert "naves" in publish._cover_prompt("Naves generacionales").lower()
     finally:
-        publish._COVER_URL = saved
+        publish._COMMONS_API, llm.chat_json = saved
+    line = publish.credit({"title": "Spacecolony4", "page": "https://c/F", "artist": "NASA",
+                           "license": "Public domain"})
+    assert line == ("*Cover image: [Spacecolony4](https://c/F), NASA, Public domain, "
+                    "via Wikimedia Commons.*")
+    assert publish._CREDIT_RE.sub("", "texto\n\n" + line) == "texto"
 
 
 def test_devto_publish_sends_key_markdown_and_cover(monkeypatch=None) -> None:
@@ -661,17 +668,21 @@ def test_devto_publish_sends_key_markdown_and_cover(monkeypatch=None) -> None:
     saved = {k: os.environ.pop(k, None)
              for k in ("DEVTO_API_KEY", "AW_PUBLISH_TARGET", "AW_COVER", "AW_TAGS")}
     os.environ["DEVTO_API_KEY"] = "k-test"
-    real_post = publish.requests.post
+    real_post, real_find = publish.requests.post, publish.find_cover
+    cover = {"title": "Spacecolony4", "url": "https://upload.wikimedia.org/s4.jpg",
+             "page": "https://c/F", "artist": "", "license": "Public domain"}
     try:
         publish.requests.post = fake_post
+        publish.find_cover = lambda *a, **k: cover
         post = publish.publish("# Una tapa\n\ncuerpo", log=lambda *_: None)
         assert post["url"] == "https://dev.to/x/art"
         assert captured["key"] == "k-test"
         assert "/api/articles" in captured["url"]
         md = captured["body"]["body_markdown"]
         assert md.startswith('---\ntitle: "Una tapa"\n')
-        assert md.endswith("\n---\n\ncuerpo")      # front matter is closed (422 otherwise)        assert "published: false" in md          # draft default
-        assert 'cover_image: "https://image.pollinations.ai/' in md
+        assert "\n---\n\ncuerpo\n\n*Cover image: [Spacecolony4]" in md  # closed front matter, credit
+        assert "published: false" in md          # draft default
+        assert 'cover_image: "https://upload.wikimedia.org/s4.jpg"' in md
         assert publish.target() == "devto"                     # key alone selects it
         # a colon in the title is a YAML mapping error unless it is quoted,
         # and dev.to only accepts ASCII alphanumeric tags
@@ -681,7 +692,7 @@ def test_devto_publish_sends_key_markdown_and_cover(monkeypatch=None) -> None:
         assert 'title: "La nave: un ensayo «largo»"' in front, front
         assert "tags: cienciaficcion,sociologia" in front, front
     finally:
-        publish.requests.post = real_post
+        publish.requests.post, publish.find_cover = real_post, real_find
         for k, v in saved.items():
             if v is None:
                 os.environ.pop(k, None)
@@ -729,7 +740,8 @@ def test_a_cover_failure_after_posting_does_not_raise() -> None:
 
     publish.requests.post = dead
     try:
-        publish._attach_cover({"id": 1}, "t", site="https://x", auth=("u", "p"),
+        publish._attach_cover({"id": 1}, "t", {"url": "https://c/x.jpg"},
+                              site="https://x", auth=("u", "p"),
                               timeout=5, log=lambda *_: None)
     finally:
         publish.requests.post, publish.make_cover = real_post, real_cover

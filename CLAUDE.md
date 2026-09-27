@@ -556,6 +556,18 @@ python test_article_writer.py               # self-check, no network, no API
   the post exists only logs (`publish._created`), so the receipt below is always written;
   `publish.publish_run()` writes `09_publicado.json` as the receipt that stops a
   resumed or looping run from posting the same article twice.
+- **Covers are real Wikimedia Commons images, not generated ones** (2026-09-27).
+  Keyless Pollinations serves the small `sana` model whatever model is asked for
+  (its EXIF says `"actualModel":"sana"`), and g4f's image models (`flux-pro`,
+  `gpt-image`) route to that same endpoint; `flux` via HuggingSpace returns a
+  `/tmp` URL dev.to cannot fetch later. `publish.find_cover()` has FLASH write
+  search queries, filters Commons hits (≥1200px, landscape, jpeg/png, nothing
+  tagged AI-generated or `PD-algorithm`), and FLASH picks one or none. The credit
+  line (`publish.credit()`) is appended to the body because CC BY/BY-SA require
+  it. `python publish.py --replace-covers [--dry-run]` swaps the cover of every
+  post in `output/*/09_publicado.json` on dev.to, from the live body_markdown;
+  posts already on Commons are skipped, and a generated cover with no fitting
+  replacement is dropped.
 - `pipeline.already_written()` feeds past run titles back into `TOPIC_PROMPT`. Without
   it a continuous run rediscovers the same three topics forever. The twelve newest go
   in a separate `{recent}` list so the `written[:3000]` cut can never drop them.
