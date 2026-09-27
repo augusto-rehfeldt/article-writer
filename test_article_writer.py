@@ -791,6 +791,25 @@ def test_interests_come_from_a_file_that_setup_rewrites() -> None:
     assert pipeline.interest_areas(), "the shipped example must not be empty"
 
 
+def test_topic_brief_replaces_sampled_areas() -> None:
+    """--topic steers the pick: no sampled areas, no variety rules, no Argentina news."""
+    queries, prompts = [], []
+    saved = research.google_news, llm.chat_json, pipeline._settle_topic, pipeline.already_written
+    research.google_news = lambda q, *a, **k: queries.append(q) or []
+    llm.chat_json = lambda model, prompt, **k: prompts.append(prompt) or {
+        "temas": [{"titulo": "T", "hipotesis": "h"}]}
+    pipeline._settle_topic = lambda run, topic: topic
+    pipeline.already_written = lambda *a, **k: []
+    try:
+        with tempfile.TemporaryDirectory() as tmp:
+            brief = "generation ships and the law of value"
+            pipeline.pick_topic(pipeline.Run(brief=brief, dir=pathlib.Path(tmp)))
+        assert set(queries) == {brief}
+        assert brief in prompts[0] and "VARIETY RULES" not in prompts[0]
+    finally:
+        research.google_news, llm.chat_json, pipeline._settle_topic, pipeline.already_written = saved
+
+
 def test_windows_split_on_paragraph_boundaries() -> None:
     """Windows never cut or repeat a paragraph; only a short tail may be dropped."""
     paras = [f"p{i} " + "palabra " * 100 for i in range(10)]

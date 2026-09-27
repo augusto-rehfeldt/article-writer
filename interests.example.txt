@@ -2,23 +2,23 @@
 # `python main.py --setup` copies this file to interests.txt (personal, gitignored)
 # and lets you rewrite it. Each run samples a few areas so topics vary; the first
 # comma-separated term of a line is also the news query for that area.
-ciencia ficción como forma de pensamiento social: utopía y distopía, primer contacto, ciencia ficción evolutiva, Le Guin, Dick, Lem, Strugatski, Ballard, Butler, Stapledon, Cixin Liu, cyberpunk, imaginarios del futuro y del fin del mundo
-historia alternativa y ucronía: puntos de divergencia, historia contrafáctica, contingencia y necesidad en el proceso histórico
-crítica del valor, wertkritik (Kurz, Postone, Jappe, Scholz, Trenkle), crítica de la economía política, crítica del trabajo abstracto, fetichismo y forma-valor
-psicoanálisis lacaniano (Lacan, Žižek), Mark Fisher y el realismo capitalista, teoría crítica, ideología y cultura popular
-cibernética y planificación económica, historia del socialismo real
-economía política de América Latina y Argentina, crítica política argentina y mundial, datos económicos y análisis cuantitativo
-ecología política y crisis climática
-lingüística: lenguas, gramática, cambio lingüístico, origen del lenguaje
-paradojas lógicas y semánticas, lógica y fundamentos de la matemática
-filosofía de la mente: conciencia, qualia, problema difícil, identidad personal, qué es lo humano
-videojuegos, sobre todo de aventura, sigilo y mundo abierto: diseño, narrativa, historia del medio
-inteligencia artificial y automatización
-astronáutica, astrofísica, vuelo espacial, naves generacionales, viaje interestelar, colonización del espacio
-paradoja de Fermi, vida extraterrestre y astrobiología
-aviación e historia de la aviación, aviones militares y civiles
-buques, historia naval y poder marítimo
-tecnología militar y equipamiento, conflictos contemporáneos
-guerras mundiales, historia moderna y contemporánea (siglos XIX y XX)
-evolución, biología evolutiva, evolución especulativa (spec evo), animales
-dinosaurios y paleontología
+science fiction as a form of social thought: utopia and dystopia, first contact, evolutionary science fiction, Le Guin, Dick, Lem, Strugatsky, Ballard, Butler, Stapledon, Cixin Liu, cyberpunk, imaginaries of the future and of the end of the world
+alternate history and uchronia: points of divergence, counterfactual history, contingency and necessity in the historical process
+value critique, wertkritik (Kurz, Postone, Jappe, Scholz, Trenkle), critique of political economy, critique of abstract labour, fetishism and the value-form
+Lacanian psychoanalysis (Lacan, Žižek), Mark Fisher and capitalist realism, critical theory, ideology and popular culture
+cybernetics and economic planning, history of actually existing socialism
+political economy of Latin America and Argentina, Argentine and world political critique, economic data and quantitative analysis
+political ecology and the climate crisis
+linguistics: languages, grammar, language change, origin of language
+logical and semantic paradoxes, logic and foundations of mathematics
+philosophy of mind: consciousness, qualia, the hard problem, personal identity, what makes us human
+video games, especially adventure, stealth and open world: design, narrative, history of the medium
+artificial intelligence and automation
+astronautics, astrophysics, spaceflight, generation ships, interstellar travel, space colonization
+Fermi paradox, extraterrestrial life and astrobiology
+aviation and aviation history, military and civil aircraft
+ships, naval history and sea power
+military technology and equipment, contemporary conflicts
+world wars, modern and contemporary history (19th and 20th centuries)
+evolution, evolutionary biology, speculative evolution (spec evo), animals
+dinosaurs and palaeontology

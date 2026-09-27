@@ -275,20 +275,10 @@ Their latest articles were (most recent first):
 
 Other titles they have already written: {written}.
 
-VARIETY RULES (mandatory):
-- No topic may return to the subject, thesis or angle of an article already written, \
-even under a new title.
-- The 5 topics must come from different areas; each area above may appear in at most \
-one topic.
-- Political economy, value critique and Marxism may be, at most, a lens in ONE topic, \
-not the axis of all of them. An article on dinosaurs, aircraft, languages or video \
-games stands on its own: it does not need to become a critique of capital.
-- Be creative: prefer odd, precise, surprising questions to predictable overviews.
+{variety}
 
 Headlines from recent weeks (to anchor in current affairs; the date comes first):
 {news}
-
-{brief_block}
 
 Propose 5 topics. Each must: (a) be arguable, not a descriptive overview; \
 (b) have a strong, risky hypothesis that could be falsified; \
@@ -323,6 +313,17 @@ Return JSON:
   "riesgo": "why it could fail"}}"""
 
 
+VARIETY_RULES = """VARIETY RULES (mandatory):
+- No topic may return to the subject, thesis or angle of an article already written, \
+even under a new title.
+- The 5 topics must come from different areas; each area above may appear in at most \
+one topic.
+- Political economy, value critique and Marxism may be, at most, a lens in ONE topic, \
+not the axis of all of them. An article on dinosaurs, aircraft, languages or video \
+games stands on its own: it does not need to become a critique of capital.
+- Be creative: prefer odd, precise, surprising questions to predictable overviews."""
+
+
 def already_written(root: pathlib.Path | None = None, limit: int = 60) -> list[str]:
     """Titles of previous runs, newest first, so the picker does not repeat itself.
 
@@ -353,12 +354,16 @@ def pick_topic(run: Run) -> dict:
         return _develop_topic(run)
     # A few areas per run, not the whole list: handed everything, the model gravitates
     # to the same political-economy corner every time.
+    # A --topic brief replaces the sampled areas and the variety rules: those rules cap
+    # value critique at one lens, which silently vetoed briefs on value critique.
     areas = interest_areas()
-    focus = random.sample(areas, min(TOPIC_AREAS, len(areas)))
+    focus = [run.brief] if run.brief else random.sample(areas, min(TOPIC_AREAS, len(areas)))
     run.log(f"[topic] areas for this issue: {'; '.join(_area_query(a) for a in focus)}")
     run.log("[topic] scanning the news…")
     news = []
-    for q in [_area_query(a) for a in focus] + ["Argentina"]:
+    # The generic Argentina query only suits free picks: under a brief its football and
+    # politics headlines pulled the topic off the requested subject.
+    for q in [_area_query(a) for a in focus] + ([] if run.brief else ["Argentina"]):
         news += research.google_news(q, 5, "es", days=30)
         news += research.google_news(q, 4, "en", days=30)
     news.sort(key=lambda n: n.date, reverse=True)
@@ -369,13 +374,14 @@ def pick_topic(run: Run) -> dict:
     past = already_written()
     recent = "\n".join(f"- {t}" for t in past[:12]) or "(none)"
     written = ", ".join(past[12:] + [p.stem.replace("-", " ") for p in style.CORPUS.glob("*.md")])
-    brief_block = (f"The author specifically asked to work on: «{run.brief}». "
-                   "Every proposed topic must develop THAT request from a different angle."
-                   ) if run.brief else ""
+    variety = (f"TOPIC REQUESTED BY THE AUTHOR (respect it, do not change the subject): "
+               f"«{run.brief}». All 5 topics must develop THAT request, each from a "
+               "different angle, and none may repeat an article already written."
+               ) if run.brief else VARIETY_RULES
     data = llm.chat_json(llm.PRO, TOPIC_PROMPT.format(
         hoy=hoy(), interests="\n".join(f"- {a}" for a in focus), recent=recent,
         written=written[:3000], news=headlines,
-        brief_block=brief_block) + _lang(), temperature=1.0)
+        variety=variety) + _lang(), temperature=1.0)
     temas = data.get("temas", [])
     # In auto mode nobody picks, so listing them is noise; and it takes one at random,
     # since "always the first" is always the model's most predictable idea.
