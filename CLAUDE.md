@@ -121,6 +121,12 @@ in English.
   by discarding the text (0.02 character similarity), which would orphan every
   dossier-grounded citation. **Ours wins Spanish** (78 worst-judge vs 82/93/99).
   Re-test only if a Spanish detector or humanizer actually ships.
+- **Re-measured 2026-09-27 (`bench_en.py`, table in `bench2.md`): opus 5.5 drafts
+  English ~20 points less machine-like than gpt-6-luna/sol/astra** (worst
+  other-family judge 60-67 vs 90-94; the three gpt-6 models are indistinguishable),
+  and one `_rewrite` pass by the drafter no longer hurts (opus 80→72, gpt-6-luna
+  94→90, one sample each). The note below is the 2026-08-24 state. Human windows
+  still read 1-3; nothing generated reads under 60.
 - **`humanize._rewrite` makes English text *worse* to the judges** (measured
   2026-08-24 with two different rewriters, so it is not one model's quirk).
   Under `LANG="en"` it drives the local score to 3 with sonnet and 2.2 with

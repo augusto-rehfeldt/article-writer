@@ -449,3 +449,29 @@ Registered everywhere (`_HYPER_MODELS`, opencode.json, ai_config_hyper.json,
 calibre providers, book-watch live listing); switch it in with
 `AW_MODELS=hyper:qwen3.8-max/glm-5.3-flash` or `--flash glm-5.3-flash` when speed
 stops mattering more than the EN win.
+
+
+## 2026-09-27: opus 5.5 vs the gpt-6 family, English (`bench_en.py`)
+
+Prompt: `bench2.styled_prompt("en", full=True)` (style guide + samples + quotas), same topic, ~1.200 words, two samples per drafter. The rewrite rows are one pass of `humanize._rewrite` over sample 1, by the drafter itself. *worst other-family* drops the judges from the drafter's own family (Anthropic judges on opus, gpt-6-astra on gpt-6).
+
+| text | words | local | opus-5.5 | sonnet | gpt-6-astra | deepseek-v4.1-flash | worst | worst other-family |
+|---|---|---|---|---|---|---|---|---|
+| draft_gpt-6-astra_1 | 1161 | 8 | 85 | 72 | 79 | 90 | 90 | 90 |
+| draft_gpt-6-astra_2 | 1162 | 22 | 86 | 72 | 82 | 91 | 91 | 91 |
+| draft_gpt-6-luna_1 | 1309 | 28 | 88 | 68 | 85 | 94 | 94 | 94 |
+| draft_gpt-6-luna_2 | 1290 | 16 | 90 | 88 | 84 | 91 | 91 | 91 |
+| draft_gpt-6-sol_1 | 1201 | 16 | 80 | 45 | 78 | 92 | 92 | 92 |
+| draft_gpt-6-sol_2 | 1199 | 16 | 80 | 62 | 76 | 90 | 90 | 90 |
+| draft_opus-5.5_1 | 1137 | 3 | 80 | 25 | 67 | 18 | 80 | 67 |
+| draft_opus-5.5_2 | 1154 | 12 | 70 | 58 | 60 | 12 | 70 | 60 |
+| human_en_1 | 1165 | 11 | 2 | 3 | 1 | 3 | 3 | 3 |
+| human_en_2 | 1200 | 21 | 2 | 3 | 1 | 3 | 3 | 3 |
+| human_en_3 | 1200 | 14 | 2 | 2 | 1 | 3 | 3 | 3 |
+| rewrite_gpt-6-luna_1 | 1281 | 36 | 86 | 82 | 83 | 90 | 90 | 90 |
+| rewrite_opus-5.5_1 | 1119 | 0 | 72 | 62 | 65 | 12 | 72 | 65 |
+
+- **opus 5.5 drafts the least machine-sounding English by ~20 points**: worst other-family 60-67 against 90-94 for every gpt-6 model. gpt-6-sol, gpt-6-luna and gpt-6-astra are indistinguishable from each other.
+- **The rewrite step helped slightly on both**, the opposite of 2026-08-24: opus 80 to 72 (other-family 67 to 65), gpt-6-luna 94 to 90. Not isolated why: the rewriters differ (sonnet/deepseek then) and `REWRITE_PROMPT_EN` has since dropped its quotas for plain observations. One sample each, so read it as "no longer harmful", not as a gain.
+- **deepseek-v4.1-flash is soft on opus** (12-18 while every other judge reads 58-80), so a panel without it would score opus worse; gpt-6-astra is not soft on its own family (76-85).
+- **The gap is still wide**: real English windows read 1-3 on every judge; the best generated text reads 60.
