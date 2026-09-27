@@ -394,9 +394,11 @@ def main() -> int:
                         "measured gain in how human the text reads (worst judge 68 with "
                         "opus vs 88-93 with the hyper trio, same prompt and topic) and "
                         "also the most expensive")
-    p.add_argument("--english", action="store_true",
-                   help="write the article in English (detectors and tell lists use the "
-                        "English corpus and guide)")
+    p.add_argument("--english", dest="lang", action="store_const", const="en",
+                   help="write the article in English, calibrated against corpus_en/ "
+                        "(the default)")
+    p.add_argument("--spanish", dest="lang", action="store_const", const="es",
+                   help="write the article in Spanish, in the author's voice")
     p.add_argument("--setup", action="store_true",
                    help="set your interests, download the corpus and build the style guide")
     p.add_argument("--refresh-style", action="store_true", help="rebuild the style guide")
@@ -432,7 +434,7 @@ def main() -> int:
             ui.log("[error] no previous run to resume in output/")
             return 1
         ui.log(f"[retomar] latest run: {args.resume}")
-    pipeline.LANG = humanize.LANG = "en" if args.english else "es"
+    pipeline.LANG = humanize.LANG = args.lang or "en"
     if args.borrador:
         pipeline.DRAFT_ROLE = args.borrador
     # An attended run answers for a dead provider instead of crashing mid-article,
@@ -471,7 +473,7 @@ def main() -> int:
         # Score against the calibration the file is written in; a Spanish corpus
         # says nothing about an English text and vice versa.
         from build_corpus_en import is_english
-        lang = "en" if (is_english(text) or args.english) else "es"
+        lang = args.lang or ("en" if is_english(text) else "es")
         local = humanize.local_score(text, lang=lang)
         score = local["score"]
         print("\nEstilometría local ({}): ".format(

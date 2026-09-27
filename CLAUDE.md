@@ -173,6 +173,9 @@ in English.
   `REVIEW_PROMPT`, and no longer injected per block by `humanize.REWRITE_PROMPT` — the
   old per-block quota is what produced one objection every 700 words.
 
+- **English is the default language since 2026-09-27** (`--spanish` for the author's
+  voice; `--english` still accepted). `pipeline.LANG`/`humanize.LANG` keep `"es"` as
+  module default for the tests; `main.main()` sets `args.lang or "en"`.
 - **`--english` is calibrated against `corpus_en/`, not against the author.**
   `pipeline.LANG`/`humanize.LANG` switch to `"en"`: every article-producing prompt
   gets an override directive appended (`pipeline._lang()`), `humanize` swaps to

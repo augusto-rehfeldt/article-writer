@@ -56,7 +56,7 @@ python main.py --topic "ciencia ficción y valor" --mode assisted
 python main.py --resume                         # retomar la última corrida (cada etapa queda cacheada)
 python main.py --resume output/20260820-slug    # retomar una corrida puntual
 python main.py --detect texto.md                # solo pasar los detectores de IA
-python main.py --english --fmt medium            # artículo y aparato en inglés
+python main.py --spanish --fmt medium            # artículo en español (el inglés es el default)
 ```
 
 ### Banderas
@@ -71,7 +71,7 @@ python main.py --english --fmt medium            # artículo y aparato en inglé
 | `--rounds N` | rondas de revisión de PRO |
 | `--detector-rounds N`, `--threshold N`, `--no-detector` | reescrituras contra los detectores, puntaje máximo tolerado (0 humano, 100 máquina), o sin detectores |
 | `--drafter pro\|flash` | quién redacta las secciones (FLASH por defecto; PRO lee más humano y cuesta más) |
-| `--english` | artículo en inglés, calibrado contra `corpus_en/` |
+| `--english`, `--spanish` | idioma del artículo; inglés por defecto, calibrado contra `corpus_en/` |
 | `--setup`, `--refresh-style` | intereses + corpus + guía de estilo; o solo reconstruir la guía |
 | `--detect archivo.md` | solo los detectores sobre un archivo |
 | `--publish no\|draft\|auto\|live` | subir como borrador, en vivo si aprueba y pasa el umbral, o siempre en vivo |
@@ -212,7 +212,7 @@ Si una corrección posterior cambia el texto, se vuelve a medir. La publicación
 automática exige aprobación editorial y un resultado explícito por debajo del umbral;
 omitir los detectores no cuenta como haberlos pasado.
 
-**Inglés (`--english`).** Usa `corpus_en/`, la guía inglesa y criterios de
+**Inglés (default; `--spanish` para español).** Usa `corpus_en/`, la guía inglesa y criterios de
 redacción propios del idioma; también traduce los rótulos, la fecha y la bibliografía
 generados por el programa. `python build_corpus_en.py --guide` prepara ese corpus.
 Sin corpus o guía ingleses, puede escribir con los criterios generales. Las llamadas
