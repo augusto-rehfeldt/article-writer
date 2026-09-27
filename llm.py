@@ -70,6 +70,9 @@ _OAUTH_BASE_URL = f"http://127.0.0.1:{_OAUTH_PORT}/v1"
 # Estimated API-equivalent costs (USD per million tokens: input/output) and the
 # minimum ChatGPT tier that serves each model. Used to show value in the wizard.
 _OAUTH_COSTS: dict[str, tuple[float, float, str]] = {
+    "gpt-6-astra":    (10.0, 50.0, "Pro $100"),
+    "gpt-6-sol":      (2.0, 10.0, "Plus $20"),
+    "gpt-6-luna":     (0.10, 0.50, "Free"),
     "gpt-5.6-sol":    (4.0, 20.0, "Plus $20"),
     "gpt-5.6-terra":  (2.0, 10.0, "Plus $20"),
     "gpt-5.6-luna":   (0.5, 2.0,  "Free"),
@@ -111,10 +114,10 @@ def oauth_cost_label(model: str) -> str:
 
 def oauth_value_summary() -> str:
     """One-line value estimate: what the subscription buys vs. paying per token."""
-    # A typical article run costs ~100k tokens; at Sol rates that is ~$1.20.
-    # 25 articles/month ≈ $30 at API rates vs $20 for Plus.
-    return ("Plus $20/mo ≈ $30/mo en tokens a precio API para ~25 artículos; "
-            "Pro $100 da 5× el límite y Sol Pro")
+    # A typical article run costs ~100k tokens; at gpt-6-sol rates that is ~$0.60.
+    # 25 articles/month ≈ $15 at API rates vs $20 for Plus.
+    return ("Plus $20/mo ≈ $15/mo en tokens a precio API para ~25 artículos; "
+            "conviene desde ~35 artículos/mes. Pro $100 da 5× el límite y Astra")
 
 _HYPER_MODELS = ["qwen3.8-max", "qwen3.7-max", "deepseek-v4-pro-0813",
                  "deepseek-v4-flash-0731", "deepseek-v4.1-flash", "qwen3.8-flash",
