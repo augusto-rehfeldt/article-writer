@@ -1,304 +1,313 @@
 # article-writer
 
-Escritor automático de artículos de ciencias sociales en el estilo de
-[Revista La Cueva](https://revistalacueva.wordpress.com/). Va del tema a la versión
-final revisada, con bibliografía real y verificada, y pasada por detectores de IA.
+Automated writer of social-science articles in the style of
+[Revista La Cueva](https://revistalacueva.wordpress.com/). It goes from topic to a
+reviewed final version, with real, verified bibliography, run past AI detectors.
 
-## Instalación
+## Installation
 
 ```bash
 pip install -r requirements.txt
-cp .env.example .env             # y poné tu clave en AW_API_KEY
-python main.py --setup           # tus intereses, el corpus de referencia y la guía de estilo
-python ingest_facultad.py        # opcional: suma tus trabajos de facultad al corpus
-python main.py --refresh-style   # y reconstruí la guía con el corpus ampliado
+cp .env.example .env             # and put your key in AW_API_KEY
+python main.py --setup           # your interests, the reference corpus and the style guide
+python ingest_facultad.py        # optional: add your university papers to the corpus
+python main.py --refresh-style   # and rebuild the guide over the enlarged corpus
 ```
 
-`--setup` primero te muestra tus intereses (ver abajo) y te deja reescribirlos; después
-descarga los 16 artículos de referencia a `corpus/`, mide la huella
-estilométrica del autor (`style_fingerprint.json`) y hace que el modelo PRO escriba
-la guía de estilo operativa (`style_guide.md`). Se corre una sola vez.
+`--setup` first shows your interests (see below) and lets you rewrite them; then it
+downloads the 16 reference articles to `corpus/`, measures the author's stylometric
+fingerprint (`style_fingerprint.json`) and has the PRO model write the working style
+guide (`style_guide.md`). It runs once.
 
-`ingest_facultad.py` recorre `D:/facultad` (o la ruta que le pases) y suma tus
-monografías, parciales domiciliarios e informes a `corpus_facultad/`. Filtra en tres
-pasos: extensión (vos escribís en Word, las lecturas son PDF), nombre de archivo
-(`Antropología 24-9.docx` es un apunte fechado, no un ensayo) y contenido — FLASH lee
-una muestra y decide si sos vos argumentando o si es texto ajeno, apuntes o una
-desgrabación. Con `--dry-run` ves la clasificación sin escribir nada.
+`ingest_facultad.py` walks `D:/facultad` (or the path you pass) and adds your
+monographs, take-home exams and reports to `corpus_facultad/`. It filters in three
+steps: extension (you write in Word, the readings are PDFs), file name
+(`Antropología 24-9.docx` is dated class notes, not an essay) and content — FLASH reads
+a sample and decides whether it is you arguing or someone else's text, notes or a
+transcript. `--dry-run` shows the classification without writing anything.
 
-`corpus_facultad/` es **solo referencia de estilo**: nunca entra en la bibliografía ni
-se cita. La bibliografía sale de los conectores online y de `library/`, que son
-directorios distintos a propósito.
+`corpus_facultad/` is **style reference only**: it never enters the bibliography and
+is never cited. The bibliography comes from the online connectors and from `library/`,
+which are separate directories on purpose.
 
-### Intereses
+For English articles (the default), `python build_corpus_en.py --guide` builds
+`corpus_en/` from human-written English prose (arXiv, Gutenberg, English works in
+`library/`) plus its fingerprint and style guide.
 
-Los temas salen de `interests.txt`: un área por línea, las líneas con `#` se ignoran.
-Es personal y no se sube al repositorio; un clon nuevo no lo tiene, así que el primer
-`--setup` copia `interests.example.txt` (la lista del autor, como ejemplo) y te
-pregunta si querés reemplazarla. Escribís un área por línea y una línea vacía para
-terminar; Enter directo la deja como está. También podés editar el archivo a mano en
-cualquier momento, y `--setup` vuelve a ofrecerlo cada vez que lo corras.
+### Interests
 
-Cada ronda de temas sortea cuatro áreas de esa lista, busca novedades de esas áreas
-(el primer término de cada línea es la consulta) y le pide a PRO cinco temas de áreas
-distintas entre sí, sin repetir el asunto de ningún artículo ya escrito (los doce más
-recientes van aparte, así nunca se pierden por recorte). La economía política puede ser
-una lente, no el eje de todo: un artículo sobre dinosaurios o sobre aviones vale por sí
-mismo.
+Topics come from `interests.txt`: one area per line, lines starting with `#` are
+ignored. It is personal and not committed; a fresh clone does not have it, so the first
+`--setup` copies `interests.example.txt` (the author's list, as an example) and asks
+whether you want to replace it. Type one area per line and an empty line to finish;
+Enter right away keeps it as is. You can also edit the file by hand at any time, and
+`--setup` offers it again every time you run it.
 
-## Uso
+Each topic round draws four areas from that list, searches the news for them (the
+first term of each line is the query) and asks PRO for five topics from different
+areas, without repeating the subject of any article already written (the twelve most
+recent are listed separately, so truncation never drops them). Political economy may
+be a lens, not the axis of everything: an article about dinosaurs or aircraft stands
+on its own.
+
+## Usage
 
 ```bash
-python main.py                                  # asistente interactivo
-python main.py --fmt medium --mode auto          # de punta a punta, sin preguntar
-python main.py --topic "Cybersyn hoy" --exact-topic --fmt long
-python main.py --topic "ciencia ficción y valor" --mode assisted
-python main.py --resume                         # retomar la última corrida (cada etapa queda cacheada)
-python main.py --resume output/20260820-slug    # retomar una corrida puntual
-python main.py --detect texto.md                # solo pasar los detectores de IA
-python main.py --spanish --fmt medium            # artículo en español (el inglés es el default)
+python main.py                                  # interactive wizard
+python main.py --fmt medium --mode auto         # end to end, no questions
+python main.py --topic "Cybersyn today" --exact-topic --fmt long
+python main.py --topic "science fiction and value" --mode assisted
+python main.py --resume                         # resume the latest run (every stage is cached)
+python main.py --resume output/20260820-slug    # resume a given run
+python main.py --detect text.md                 # only run the AI detectors
+python main.py --spanish --fmt medium           # article in Spanish (English is the default)
 ```
 
-### Banderas
+### Flags
 
-| Bandera | Qué hace |
+| Flag | What it does |
 |---|---|
-| `--fmt` | extensión y género (tabla de abajo) |
-| `--mode auto\|assisted` | de punta a punta, o con consultas en tema, esquema, correcciones y aprobación |
-| `--topic`, `--exact-topic` | pista de tema; con `--exact-topic`, ese tema y ningún otro |
-| `--resume [carpeta]` | retoma una corrida; sin carpeta, la última |
-| `--no-library` | no frena a pedir libros faltantes |
-| `--rounds N` | rondas de revisión de PRO |
-| `--detector-rounds N`, `--threshold N`, `--no-detector` | reescrituras contra los detectores, puntaje máximo tolerado (0 humano, 100 máquina), o sin detectores |
-| `--drafter pro\|flash` | quién redacta las secciones (FLASH por defecto; PRO lee más humano y cuesta más) |
-| `--english`, `--spanish` | idioma del artículo; inglés por defecto, calibrado contra `corpus_en/` |
-| `--setup`, `--refresh-style` | intereses + corpus + guía de estilo; o solo reconstruir la guía |
-| `--detect archivo.md` | solo los detectores sobre un archivo |
-| `--publish no\|draft\|auto\|live` | subir como borrador, en vivo si aprueba y pasa el umbral, o siempre en vivo |
-| `--provider`, `--backups A,B`, `--pro`, `--flash`, `--models` | cadena de proveedores y modelos (ver Modelos) |
-| `--wizard` | el asistente pregunta aunque haya otras banderas |
-| `--continuous N`, `--every MIN` | N artículos seguidos eligiendo temas solo (0 = sin fin), con pausa entre uno y otro |
+| `--fmt` | length and genre (table below) |
+| `--mode auto\|assisted` | end to end, or asking at topic, outline, corrections and approval |
+| `--topic`, `--exact-topic` | topic hint; with `--exact-topic`, that topic and no other |
+| `--resume [folder]` | resume a run; without a folder, the latest |
+| `--no-library` | do not stop to ask for missing books |
+| `--rounds N` | PRO review rounds |
+| `--detector-rounds N`, `--threshold N`, `--no-detector` | rewrites against the detectors, highest tolerated score (0 human, 100 machine), or no detectors |
+| `--drafter pro\|flash` | who drafts the sections (FLASH by default; PRO reads more human and costs more) |
+| `--english`, `--spanish` | article language; English by default, calibrated against `corpus_en/` |
+| `--setup`, `--refresh-style` | interests + corpus + style guide; or only rebuild the guide |
+| `--detect file.md` | only the detectors, over a file |
+| `--publish no\|draft\|auto\|live` | upload as draft, live if approved and under the threshold, or always live |
+| `--provider`, `--backups A,B`, `--pro`, `--flash`, `--models` | provider chain and models (see Models) |
+| `--wizard` | the wizard asks even when other flags are given |
+| `--continuous N`, `--every MIN` | N articles in a row, picking topics itself (0 = never stop), with a pause between them |
 
-**Vos ponés el tema.** Con `--topic` das una pista y el sistema te propone cinco ángulos
-para elegir. Con `--topic --exact-topic` escribe sobre eso y nada más: PRO solo le agrega
-hipótesis, pregunta y plan bibliográfico. En modo asistido podés ajustar la hipótesis
-antes de que empiece a investigar.
+**You set the topic.** With `--topic` you give a hint and the system proposes five
+angles to choose from. With `--topic --exact-topic` it writes about that and nothing
+else: PRO only adds a hypothesis, a question and a reading plan. In assisted mode you
+can adjust the hypothesis before research starts.
 
-### Formatos
+### Formats
 
-| `--fmt` | Palabras | Qué es |
+| `--fmt` | Words | What it is |
 |---|---|---|
-| `short` | 1.200–1.600 | artículo breve, polémico, de intervención |
-| `medium` | 3.000–4.000 | artículo de divulgación teórica |
-| `long` | 7.000–9.000 | ensayo extenso con aparato crítico |
-| `paper` | 10.000–13.000 | paper académico con resumen, hipótesis y conclusión |
-| `thesis` | 40.000–80.000 | tesis por capítulos |
-| `book` | 70.000–120.000 | libro de ensayo teórico |
-| `debate` | 3.500–4.500 | confrontación explícita entre posiciones rivales |
+| `short` | 1,200–1,600 | short intervention piece |
+| `medium` | 3,000–4,000 | theory-for-general-readers article |
+| `long` | 7,000–9,000 | long essay with critical apparatus |
+| `paper` | 10,000–13,000 | academic paper with abstract, hypothesis and conclusion |
+| `thesis` | 40,000–80,000 | thesis in chapters |
+| `book` | 70,000–120,000 | book-length theoretical essay |
+| `debate` | 3,500–4,500 | explicit confrontation between rival positions |
 
-La extensión es un **rango, no una meta**: el esquema reparte el presupuesto entre las
-secciones y el redactor decide cuántas y de qué largo (500 a 10.000 palabras, con
-longitudes explícitamente desiguales). Cada formato lleva además su propio registro
-(un `paper` y un artículo de intervención no hablan igual), que manda sobre las reglas
-de estilo genéricas.
+Length is a **range, not a target**: the outline splits the budget across sections
+and the drafter decides how many and how long (500 to 10,000 words, deliberately
+uneven). Each format also carries its own register (a `paper` and an intervention
+piece do not sound alike), which overrides the generic style rules.
 
-### Modos
+### Modes
 
-- `auto` — elige tema, investiga, escribe, revisa y aprueba sin intervención. No
-  muestra la lista de temas propuestos y toma uno al azar (siempre el primero era
-  siempre la idea más previsible del modelo).
-- `asistido` — te consulta en cuatro puntos: elección del tema, esquema, aplicación
-  de las correcciones de la revisión, y aprobación final.
+- `auto` — picks the topic, researches, writes, reviews and approves with no
+  intervention. It does not list the proposed topics and takes one at random (always
+  the first one was always the model's most predictable idea).
+- `assisted` — asks you at four points: topic choice, outline, applying the review's
+  corrections, and final approval.
 
-## Cómo funciona
+## How it works
 
 ```
-tema (PRO)  →  investigación  →  esquema (FLASH, auditado por PRO)
-            →  redacción por secciones (FLASH)
-            →  detectores de IA + reescritura (FLASH + jueces de otras familias)
-            →  revisión de pares (PRO)  →  corrección (FLASH)
-            →  aprobación final (PRO)
+topic (PRO)  →  research  →  outline (FLASH, audited by PRO)
+             →  drafting section by section (FLASH)
+             →  peer review (PRO)  →  surgical corrections (PRO)
+             →  AI detectors + rewriting (FLASH + judges from other families)
+             →  final approval (PRO)
 ```
 
-Cada etapa se guarda en `output/<fecha>-<slug>/`:
+Every stage is saved in `output/<date>-<slug>/`:
 
-| Archivo | Contenido |
+| File | Contents |
 |---|---|
-| `01_topic.json` | tema, hipótesis, tensión teórica, por qué ahora |
-| `02_plan.json` / `02_dossier.json` / `02_faltantes.json` | consultas, fuentes, libros que no se consiguieron |
-| `03_plan.json` | arquitectura previa (sólo `tesis` y `libro`): unidades, función y presupuesto |
-| `03_outline.json` | esquema con presupuesto de palabras y fuentes por sección |
-| `04_sec01.md`… | cada sección redactada (caché: borrar para rehacerla). Las secciones largas se parten por subsección: `04_sec02_01.md`, y en partes si aún no entran: `04_sec02_01a.md` |
-| `04_draft.md`, `04_draft_humanizado.md` | borrador y versión desautomatizada |
-| `05_final.md` | **el artículo** |
-| `06_review.json`, `07_detector.json`, `08_approval.json` | revisión, detectores, dictamen |
+| `01_topic.json` | topic, hypothesis, theoretical tension, why now |
+| `02_plan.json` / `02_dossier.json` / `02_faltantes.json` | queries, sources, books that could not be obtained |
+| `03_plan.json` | prior architecture (only `thesis` and `book`): units, function and budget |
+| `03_outline.json` | outline with word budget and sources per section |
+| `04_sec01.md`… | each drafted section (cache: delete it to redo it). Long sections are split by subsection: `04_sec02_01.md`, and into parts if they still do not fit: `04_sec02_01a.md` |
+| `04_draft.md`, `04_draft_humanizado.md`, `04_draft_corregido.md` | draft, humanized version, post-humanizing correction |
+| `05_final.md` | **the article** |
+| `06_review.json`, `07_detector.json`, `08_approval.json` | review, detectors, verdict |
 
-## Bibliografía
+## Bibliography
 
-Fuentes consultadas, todas sin clave de API:
+Sources consulted, all without an API key:
 
-- **Papers**: OpenAlex, Crossref, DOAJ (buena cobertura en español), Semantic Scholar, arXiv.
-- **Texto completo**: Unpaywall (acceso abierto legal) y, para lo que está tras muro
-  de pago, Sci-Hub. Los espejos de Sci-Hub están casi siempre detrás de un desafío JS,
-  así que suele fallar; no es un error del programa. Cuando ningún catálogo resuelve
-  una obra, la búsqueda termina en la web abierta con Chrome sin cabeza (Selenium), la
-  única ruta que sigue pasando donde los buscadores bloquean el HTTP sin clave.
-- **Actualidad**: Google News RSS (español y inglés) y GDELT.
-- **Libros**: primero tu biblioteca Calibre (consultada por título, sin escanearla),
-  después Open Library, Project Gutenberg, archive.org y Library Genesis; lo que
-  aterriza se guarda en `library/` para la próxima corrida. Artículos de revista los
-  resuelve `fetch_paper()` (Crossref/arXiv → DOI → Unpaywall → Sci-Hub), y Anna's
-  Archive queda solo como lista de enlaces — Cloudflare la bloquea.
-- **Archivos de teoría**: Monthly Review, Viewpoint, Brooklyn Rail, Spectre,
-  Historical Materialism, libcom.org, y la propia Revista La Cueva.
-- **Tu biblioteca**: poné `.epub`, `.pdf`, `.docx`, `.txt`, `.html` (o formatos
-  Calibre como `.azw3`, que se convierten con `ebook-convert`) en `library/` y se
-  indexan solos.
+- **Papers**: OpenAlex, Crossref, DOAJ (good Spanish-language coverage), Semantic
+  Scholar, arXiv.
+- **Full text**: Unpaywall (legal open access) and, for what sits behind a paywall,
+  Sci-Hub. Sci-Hub mirrors are almost always behind a JS challenge, so it usually
+  fails; that is not a bug. When no catalogue resolves a work, the search ends on the
+  open web with headless Chrome (Selenium), the one route that still gets through
+  where search engines block keyless HTTP.
+- **Current affairs**: Google News RSS (Spanish and English) and GDELT.
+- **Books**: your Calibre library first (queried by title, never scanned), then Open
+  Library, Project Gutenberg, archive.org and Library Genesis; whatever lands is saved
+  to `library/` for the next run. Journal articles are resolved by `fetch_paper()`
+  (Crossref/arXiv → DOI → Unpaywall → Sci-Hub), and Anna's Archive is only a link in
+  the list — Cloudflare blocks it.
+- **Theory archives**: Monthly Review, Viewpoint, Brooklyn Rail, Spectre, Historical
+  Materialism, libcom.org, and Revista La Cueva itself.
+- **Your library**: drop `.epub`, `.pdf`, `.docx`, `.txt`, `.html` (or Calibre formats
+  like `.azw3`, converted with `ebook-convert`) into `library/` and they are indexed
+  automatically.
 
-### El portón de biblioteca
+### The library gate
 
-Antes de escribir una sola línea, el sistema compara las obras que el plan declaró
-imprescindibles contra las que efectivamente consiguió **en texto completo** (un resumen
-de dos líneas no cuenta). Con lo que falte, frena y te muestra, obra por obra, los
-candidatos de descarga directa que encontró más siete enlaces de respaldo —Anna's
-Archive, Library Genesis, Z-Library, Marxists Internet Archive, Google Books, Internet
-Archive, Open Library—. Dejás los archivos en `library/`, apretás Enter, y vuelve a
-chequear; también podés pegar una URL y la baja en el momento. Hasta tres rondas.
-Escribí `skip` para continuar sin ellas. En modo `auto` imprime el informe y sigue
-solo, sin bloquear. Con `--no-library` ni pregunta.
+Before writing a single line, the system compares the works the plan declared
+essential against the ones it actually obtained **in full text** (a two-line abstract
+does not count). For whatever is missing it stops and shows you, work by work, the
+direct-download candidates it found plus seven fallback links —Anna's Archive,
+Library Genesis, Z-Library, Marxists Internet Archive, Google Books, Internet Archive,
+Open Library—. Drop the files in `library/`, press Enter, and it checks again; you can
+also paste a URL and it downloads it on the spot. Up to three rounds. Type `skip` to
+go on without them. In `auto` mode it prints the report and carries on without
+blocking. With `--no-library` it does not even ask.
 
-### Citas: APA 7 y nada inventado
+### Citations: APA 7 and nothing invented
 
-Se cita en **normas APA 7 en español**: `(Postone, 2006)`, `(Postone, 2006, p. 302)`,
-`(Kurz y Jappe, 2016)`, `(Marx et al., 1867)`, cita narrativa cuando el autor es sujeto,
-y lista de **Referencias** alfabética con títulos en cursiva y DOI.
+Citations follow **APA 7** in the article's language: `(Postone, 2006)`,
+`(Postone, 2006, p. 302)`, `(Kurz & Jappe, 2016)` in English or `(Kurz y Jappe, 2016)`
+in Spanish, `(Marx et al., 1867)`, narrative citations when the author is the subject,
+and an alphabetical **References** list with italic titles and DOIs.
 
-**Ninguna cita se inventa.** El modelo solo puede citar claves presentes en el dossier;
-`research.verify_citations()` cruza cada `(Autor, año)` del texto contra las fuentes
-reales, antes y después de la reescritura, y manda a corregir lo que no tenga respaldo.
+**No citation is invented.** The model may only cite keys present in the dossier;
+`research.verify_citations()` checks every `(Author, year)` in the text against the
+real sources, before and after rewriting, and sends anything unbacked back for
+correction.
 
-## Revisión de prosa y detectores
+## Prose review and detectors
 
-La redacción y la reescritura comparten criterios editoriales en inglés y español:
-claridad, continuidad del argumento, precisión y sintaxis idiomática. Las muestras
-del corpus orientan la voz; sus datos y citas no son fuentes del artículo. Las
-métricas describen el estilo y no imponen cuotas de frases cortas, subordinadas,
-paréntesis, enclisis ni signos de puntuación.
+Drafting and rewriting share editorial criteria in English and Spanish: clarity,
+continuity of the argument, precision and idiomatic syntax. Corpus samples guide the
+voice; their facts and citations are not sources for the article. The metrics
+describe the style and do not impose quotas of short sentences, subordinate clauses,
+parentheses, enclitics or punctuation marks.
 
-Cada sección nueva se comprueba antes de guardarla: extensión dentro del rango
-pedido e idioma compatible. Una respuesta inválida se vuelve a pedir una vez;
-si vuelve a fallar, la ejecución se detiene sin guardarla como una sección terminada.
-La revisión y la corrección reciben los pasajes disponibles del dossier para poder
-contrastar las afirmaciones con las fuentes.
+Each new section is checked before it is saved: length within the requested range and
+the right language. A reply outside ±10% gets a retry; after that, the right-language
+reply closest to the budget is kept if it lands between 70% and 150%. A plainly cut or
+wrong-language section is retried on the main provider and then handed to each backup
+in the chain; the run stops only when every link failed, and nothing incomplete is
+cached. Review and correction receive the available dossier passages so claims can be
+checked against the sources.
 
-La reescritura recibe el contexto de los bloques vecinos. Cada propuesta debe
-conservar las citas, páginas, cifras, citas textuales y marcas de notas, y mantenerse
-dentro de ±10% de la extensión original. Si altera esos elementos, se conserva el
-bloque anterior. Esta comprobación no verifica por sí sola el significado: la
-fidelidad de las afirmaciones sigue requiriendo revisión editorial y documental.
+Rewriting receives the context of the neighbouring blocks. Each proposal must keep the
+citations, pages, figures, verbatim quotations and note markers, and stay within ±10%
+of the original length. If it alters any of them, the previous block is kept. This
+check does not verify meaning on its own: the fidelity of the claims still needs
+editorial and documentary review.
 
-El informe separa tres señales:
+The report separates three signals:
 
-1. Estilometría local: diagnósticos para revisar la prosa, sin decidir la aprobación.
-2. Jueces LLM: los modelos PRO y FLASH elegidos para la ejecución, sobre el inicio,
-   centro y final de textos largos. No son una evaluación independiente del redactor.
-3. Detectores externos: los servicios configurados y, en inglés, el clasificador
-   local opcional si está disponible.
+1. Local stylometry: diagnostics for revising the prose, not an approval decision.
+2. LLM judges: a fixed panel (`claude-opus-5-5` on `claude`, `gpt-6-astra` on
+   `oauth`), over the opening, middle and end of long texts. If every judge fails,
+   the drafting model judges instead.
+3. External detectors: the configured services and, in English, the optional local
+   classifier if available.
 
-El umbral se aplica a la peor puntuación válida de los jueces y detectores externos.
-Sin respuestas válidas, el resultado es indeterminado, nunca aprobado. Se conserva
-la mejor versión medida y el informe identifica su ronda, idioma y huella SHA-256.
-Si una corrección posterior cambia el texto, se vuelve a medir. La publicación
-automática exige aprobación editorial y un resultado explícito por debajo del umbral;
-omitir los detectores no cuenta como haberlos pasado.
+The threshold applies to the worst valid score among judges and external detectors.
+With no valid answers the result is undetermined, never a pass. The best measured
+version is kept and the report records its round, language and SHA-256 hash. If a
+later correction changes the text, it is measured again. Automatic publishing requires
+editorial approval and an explicit result under the threshold; skipping the detectors
+does not count as passing them.
 
-**Inglés (default; `--spanish` para español).** Usa `corpus_en/`, la guía inglesa y criterios de
-redacción propios del idioma; también traduce los rótulos, la fecha y la bibliografía
-generados por el programa. `python build_corpus_en.py --guide` prepara ese corpus.
-**Consola y prompts en inglés.** Todos los mensajes de la consola, el asistente y las
-preguntas interactivas (`[y/N]`, `[e]dit / [p]ublish / [n]o`, `[w]ait / [c]hange / [a]bort`)
-están en inglés, y también las instrucciones que reciben los modelos; el idioma del
-artículo lo fija una directiva al final de cada prompt (`pipeline._lang()`), así que
-`--spanish` sigue escribiendo en español rioplatense. Los nombres de campos JSON y
-los archivos de `output/` no cambian, así que los runs viejos se retoman igual.
-El juez y el reescritor específicos del español (`humanize.JUDGE_PROMPT`,
-`REWRITE_PROMPT`) y la construcción de la guía española (`style.BUILD_PROMPT`)
-siguen en español: solo corren con `--spanish`.
-Sin corpus o guía ingleses, puede escribir con los criterios generales. Las llamadas
-a los escritores CLI se aíslan de las instrucciones de programación del proyecto.
+**Language.** English is the default (`--spanish` for Spanish). English uses
+`corpus_en/`, the English guide and English-specific drafting criteria, and also
+translates the labels, date and bibliography the program generates. Without an English
+corpus or guide it still writes with the general criteria. Calls to CLI writers are
+isolated from the project's coding instructions.
 
-Los puntajes son señales de revisión, no pruebas de autoría. Una puntuación baja
-no garantiza que otro detector acepte el texto ni que sus afirmaciones sean correctas.
+**Console and prompts are in English** in both languages. Every console message,
+wizard question and interactive prompt (`[y/N]`, `[e]dit / [p]ublish / [n]o`,
+`[w]ait / [c]hange / [a]bort`) is English, and so are the instructions the models
+receive; the article's language is set by a directive appended to each prompt
+(`pipeline._lang()`), so `--spanish` still writes Rioplatense Spanish. JSON field names
+and `output/` file names are unchanged, so old runs resume as before. The
+Spanish-specific judge and rewriter (`humanize.JUDGE_PROMPT`, `REWRITE_PROMPT`) and the
+Spanish guide builder (`style.BUILD_PROMPT`) stay in Spanish: they only run under
+`--spanish`.
 
-## Modelos
+Scores are review signals, not proof of authorship. A low score does not guarantee
+that another detector will accept the text, nor that its claims are correct.
 
-| Rol | Modelo | Para qué |
+## Models
+
+| Role | Model | Used for |
 |---|---|---|
-| PRO | el del proveedor principal | tema, auditoría del esquema, revisión, correcciones, aprobación final |
-| FLASH | el del proveedor principal | consultas, esquema, redacción, reescritura |
-| Jueces | PRO y FLASH | detección de texto generado |
+| PRO | the main provider's | topic, outline audit, review, corrections, final approval |
+| FLASH | the main provider's | queries, outline, drafting, rewriting |
+| Judges | `claude-opus-5-5`, `gpt-6-astra` | detecting generated text |
 
-Cada respaldo de la cadena contesta con sus propios modelos (`--models`, `AW_MODELS`):
+Each backup in the chain answers with its own models (`--models`, `AW_MODELS`):
 
-| Proveedor | PRO / FLASH por defecto |
+| Provider | Default PRO / FLASH |
 |---|---|
 | `claude` | `claude-opus-5-5` / `sonnet` |
 | `hyper`, `go` | `qwen3.8-flash` / `deepseek-v4.1-flash` |
 | `zen` | `glm-5.3-flash` / `deepseek-v4.1-flash` |
 | `grok` | `grok-4` / `grok-4-fast` |
+| `g4f` | `deepseek-v4-pro` / `glm-5.3` |
 | `oauth` | `gpt-6-sol` / `gpt-6-luna` |
 
-Se cambian por `.env` (`AW_BACKEND`, `AW_MODEL_PRO`, `AW_MODEL_FLASH`,
-`AW_MODEL_JUDGES`), por banderas (`--provider/--backups/--pro/--flash`) o en el
-asistente interactivo (primera pregunta). `AW_BACKEND` es una **cadena ordenada** de
-proveedores: `hyper` por defecto, `claude` y `opencode` también disponibles; la
-llamada sale por el primero y camina al siguiente si no responde. `claude` es el CLI
-de Claude Code en modo print (corre sobre tu suscripción, no sobre una clave medida)
-y es *exclusivo*: solo responde modelos de su catálogo, así que los jueces nunca
-caen en la familia que escribió el texto.
+Change them in `.env` (`AW_BACKEND`, `AW_MODEL_PRO`, `AW_MODEL_FLASH`, `AW_MODELS`),
+with flags (`--provider/--backups/--pro/--flash/--models`) or in the interactive
+wizard (first question). `AW_BACKEND` is an **ordered chain** of providers: the call
+goes out through the first and walks to the next if it does not answer. `claude` is
+the Claude Code CLI in print mode (it runs on your subscription, not a metered key)
+and is *exclusive*: it only answers for models in its own catalogue. In an attended
+run, when the whole chain fails you are asked to wait 30s, change provider/model, or
+abort.
 
-### Respaldo por OpenCode
+### OpenCode fallback
 
-Si el proveedor principal no responde después de todos los reintentos, la llamada sale
-por el CLI de `opencode` contra el provider `opencode-go`, que sirve las mismas
-familias (y alguna que hyper no tiene, como `glm-5.3`). Es automático; se apaga con
-`AW_OPENCODE_FALLBACK=0`. En los menús y en `AW_BACKEND` el proveedor se llama `go`
-(el nombre viejo `opencode` se sigue aceptando).
+If the main provider does not answer after every retry, the call goes out through the
+`opencode` CLI against the `opencode-go` provider, which serves the same families (and
+some hyper lacks, like `glm-5.3`). It is automatic; turn it off with
+`AW_OPENCODE_FALLBACK=0`. In the menus and in `AW_BACKEND` the provider is called `go`
+(the old name `opencode` is still accepted).
 
-Todas las llamadas salen por el `AIService` de `book writer` (la suite de IA común del
-workspace; carpeta hermana `../book writer` o `AW_BOOK_WRITER`): cada eslabón de la
-cadena usa la configuración de ese proveedor en book writer, pide el máximo de salida
-del modelo, reintenta una respuesta truncada con el doble de presupuesto, y el último
-eslabón de una corrida desatendida espera a que se libere un límite de uso en vez de
-morir.
+Every call goes through `book writer`'s `AIService` (the workspace's shared AI suite;
+sibling folder `../book writer` or `AW_BOOK_WRITER`): each link in the chain uses that
+provider's configuration in book writer, asks for the model's full output allowance,
+retries a truncated reply with double the budget, and the last link of an unattended
+run waits out a usage limit instead of dying.
 
-El proyecto trae un `opencode.json` con el provider `hyper` ya configurado y con
-`CLAUDE.md` como instrucciones, por si querés trabajar el repo desde ahí:
+The project ships an `opencode.json` with the `hyper` provider already configured and
+`CLAUDE.md` as instructions, in case you want to work on the repo from there:
 
 ```bash
 export AW_API_KEY=sk-hyper-...
-opencode        # desde article-writer/
+opencode        # from article-writer/
 ```
 
 ## Lamplight
 
-El juego (biblioteca, campaña histórica y cliente Godot) se separó el 2026-09-23 a
-[`../lamplight`](../lamplight/README.md). Importa `llm`, `pipeline`, `research` y
-`style` desde esta carpeta: si cambia su API pública, corré también sus pruebas.
+The game (library, historical campaign and Godot client) was split out on 2026-09-23
+to [`../lamplight`](../lamplight/README.md). It imports `llm`, `pipeline`, `research`
+and `style` from this folder: if their public API changes, run its tests too.
 
-## Verificación
+## Verification
 
 ```bash
-python test_article_writer.py    # comprobaciones deterministas, sin red ni clave de API
-python -m pytest -q -p no:cacheprovider   # alternativa, si tenés pytest instalado
-python bench_bilingual.py --backend hyper  # prueba real, consume la API configurada
+python test_article_writer.py    # deterministic checks, no network or API key
+python -m pytest -q -p no:cacheprovider   # alternative, if you have pytest installed
+python bench_bilingual.py --backend hyper  # real test, spends the configured API
 ```
 
-La prueba bilingüe guarda borradores, versiones editadas e informes en
-`output/bilingual-check-<fecha>/`. Usa un caso explícitamente ficticio para comprobar
-idioma, extensión del borrador, citas y preservación del contenido durante la
-reescritura. La revisión puede acortar material repetido o sin respaldo; la reescritura
-de estilo debe respetar ±10% de la versión revisada. Un editor LLM evalúa naturalidad,
-claridad, coherencia, precisión y fidelidad; exige al menos 4/5 en cada criterio.
-Los resultados del detector se informan por separado y no se presentan como pruebas
-de calidad ni de autoría humana.
+The bilingual test saves drafts, edited versions and reports in
+`output/bilingual-check-<date>/`. It uses an explicitly fictional case to check
+language, draft length, citations and content preservation during rewriting. Review
+may shorten repeated or unbacked material; the style rewrite must stay within ±10% of
+the reviewed version. An LLM editor scores naturalness, clarity, coherence, precision
+and fidelity, and requires at least 4/5 on each. Detector results are reported
+separately and are not presented as proof of quality or of human authorship.
