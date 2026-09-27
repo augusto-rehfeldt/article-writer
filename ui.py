@@ -78,11 +78,20 @@ COMPACT = False
 TTY = bool(getattr(sys.stdout, "isatty", lambda: False)())
 _LOCK = threading.RLock()
 _STATUS = False
+# On a tty the latest progress bar ([borrador] [###...] 2/6 …) is pinned as the
+# bottom line and redrawn in place; the log scrolls above it. A different stage
+# tag unpins it.
+_BAR = ""
+
+
+def _is_bar(msg: str) -> bool:
+    first = msg.lstrip("\n").split("\n", 1)[0]
+    return "] [#" in first or "] [." in first
 
 
 def _chatter(msg: str) -> bool:
     first = msg.lstrip("\n").split("\n", 1)[0]
-    if "] [#" in first or "] [." in first:  # progress bars stay in the log
+    if _is_bar(first):  # bars have their own pinned line
         return False
     return (first.lstrip().startswith("·") or first.startswith("[llm]")
             or "reutilizando" in first or "en caché" in first
@@ -105,12 +114,18 @@ def status(msg: str) -> None:
         return
     if not TTY:  # a redirected log gets no carriage-return noise
         return
+    with _LOCK:
+        _draw(f"{_BAR} · {msg}" if _BAR else msg)
+
+
+def _draw(msg: str) -> None:
+    """Overwrite the current terminal line with msg (tty only)."""
+    global _STATUS
     width = shutil.get_terminal_size().columns - 1
     line = " ".join(msg.split())
-    with _LOCK:
-        sys.stdout.write("\r" + line[:width].ljust(width))
-        sys.stdout.flush()
-        _STATUS = True
+    sys.stdout.write("\r" + _line(line[:width].ljust(width)))
+    sys.stdout.flush()
+    _STATUS = True
 
 
 def progress_bar(done: int, total: int, width: int = 20) -> str:
@@ -124,12 +139,23 @@ def log(msg: str = "") -> None:
     A blank line separates each change of stage tag, so a long run reads as
     blocks instead of a wall of text.
     """
+    global _BAR
+    if TTY and _is_bar(str(msg)):
+        with _LOCK:
+            _BAR = str(msg).strip()
+            _draw(_BAR)
+        return
     if COMPACT and _chatter(str(msg)):
         status(str(msg))
         return
     with _LOCK:
         _clear_status()
+        m = _TAG.match(str(msg))
+        if _BAR and m and m.group(2) != _TAG.match(_BAR).group(2):
+            _BAR = ""
         _log(msg)
+        if _BAR:
+            _draw(_BAR)
 
 
 def _log(msg: str = "") -> None:
@@ -147,6 +173,21 @@ def _log(msg: str = "") -> None:
 
 
 def demo() -> None:
+    # A bar is pinned in place on a tty and survives same-tag lines; a new tag unpins it.
+    global TTY, _BAR
+    import io
+    tty, out, TTY, sys.stdout = TTY, sys.stdout, True, io.StringIO()
+    try:
+        log("[borrador] [#...] 1/4 intro (500p)…")
+        log("[borrador] [##..] 2/4 dos (500p)…")
+        assert "\n" not in sys.stdout.getvalue() and _BAR.endswith("dos (500p)…")
+        log("[borrador] 900 palabras o idioma incorrecto; reintento")
+        assert _BAR and sys.stdout.getvalue().rstrip().endswith("dos (500p)…")
+        log("[revisión] veredicto")
+        assert _BAR == ""
+    finally:
+        TTY, sys.stdout, _BAR = tty, out, ""
+        globals()["_STATUS"] = False
     assert _line("hola") == "hola"
     if not ENABLED:  # nothing else is observable with colour off
         return

@@ -447,6 +447,21 @@ def test_continuous_mode_resumes_a_crashed_run_once() -> None:
         main.run_once, main.time.sleep = saved
 
 
+def test_continuous_mode_takes_the_topic_for_the_first_article_only() -> None:
+    import argparse, main
+    seen, args = [], argparse.Namespace(
+        continuo=2, cada=0, fmt="medio", mode="auto", sin_biblioteca=True,
+        tema="naves generacionales", tema_exacto=False, no_detector=True,
+        threshold=25.0, rounds=1, detector_rounds=0, publicar="no")
+    saved = main.run_once
+    main.run_once = lambda a, resume="", run=None: seen.append(run.brief)
+    try:
+        main.loop(args)
+        assert seen == ["naves generacionales", ""], seen
+    finally:
+        main.run_once = saved
+
+
 def test_opencode_alias_maps_versioned_ids() -> None:
     import llm
     assert llm.OPENCODE_ALIAS["deepseek-v4-pro-0813"] == "deepseek-v4-pro"

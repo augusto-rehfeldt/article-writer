@@ -318,6 +318,7 @@ def loop(args: argparse.Namespace) -> int:
     resumable: pipeline.Run | None = None   # a crashed run, retried once from its cache
     # --resume with --continuous: finish the cached run first, then keep looping.
     initial_resume = getattr(args, "resume", "") or ""
+    brief = args.tema   # --topic steers the first new article only; the rest pick their own
     while n == 0 or done + failures < n:
         print("\n" + ui.rule(f"artículo {done + failures + 1}"
                              f"{'' if n == 0 else f' de {n}'}"))
@@ -325,7 +326,11 @@ def loop(args: argparse.Namespace) -> int:
         retry = run is not None
         if run is None:
             run = pipeline.Run(fmt=args.fmt, mode=args.mode,
+                               brief="" if initial_resume else brief,
+                               exact_topic=args.tema_exacto and bool(brief) and not initial_resume,
                                ask_library=not args.sin_biblioteca)
+            if not initial_resume:
+                brief = ""
             if initial_resume:
                 run.dir = pathlib.Path(initial_resume)
                 adopt(run)
