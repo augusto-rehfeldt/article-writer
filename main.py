@@ -480,6 +480,12 @@ def main() -> int:
         humanize.external_detectors(text, lang=lang)
         return 0
 
+    # Someone at the terminal picks the models every run, --resume and --continuous
+    # included (asked once, before the loop starts); model flags skip the question.
+    model_flags = args.proveedor or args.respaldo or args.pro or args.flash or args.modelos
+    if sys.stdin.isatty() and not model_flags and not (args.wizard or len(sys.argv) == 1):
+        pick_models()
+
     if args.refresh_style:
         style.build_guide(refresh=True, lang=pipeline.LANG)
 

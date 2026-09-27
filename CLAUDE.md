@@ -66,6 +66,9 @@ in English.
   Pick it in the wizard (first question), with `--provider/--backups/--pro/--flash`,
   or in `.env`. `llm.configure()` is the single entry point — it also recomputes
   `JUDGES`.
+- **Every attended run asks for the models** (`pick_models`), `--resume` and
+  `--continuous` included (once, before the loop). Only a non-tty stdin or a model
+  flag (`--provider`, `--backups`, `--pro`, `--flash`, `--models`) skips it.
 - **The wizard's model list is live.** `llm.catalogue(backend)` merges the built-in
   list with whatever the provider answers right now: OpenAI-compatible `/models`
   for hyper and zen, `opencode models` for the CLI. Built-ins first, live additions
