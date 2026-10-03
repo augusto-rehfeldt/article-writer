@@ -60,6 +60,11 @@ OPENCODE_ALIAS = {
 }
 
 ROOT = pathlib.Path(__file__).resolve().parent
+BOOK_WRITER = pathlib.Path(os.environ.get("AW_BOOK_WRITER") or ROOT.parent / "book writer")
+AI_SUITE = ROOT.parent / "ai-suite"
+if str(AI_SUITE) not in sys.path:
+    sys.path.insert(0, str(AI_SUITE))
+from ai_suite.providers import provider_options
 
 # openai-oauth runs a local proxy that handles ChatGPT OAuth login and exposes
 # an OpenAI-compatible /v1 surface. The proxy is started on demand via npx.
@@ -69,6 +74,7 @@ _OAUTH_BASE_URL = f"http://127.0.0.1:{_OAUTH_PORT}/v1"
 # Estimated API-equivalent costs (USD per million tokens: input/output) and the
 # minimum ChatGPT tier that serves each model. Used to show value in the wizard.
 _OAUTH_COSTS: dict[str, tuple[float, float, str]] = {
+    "gpt-6.1-sol":    (2.0, 10.0, "Plus $20"),
     "gpt-6-astra":    (10.0, 50.0, "Pro $100"),
     "gpt-6-sol":      (2.0, 10.0, "Plus $20"),
     "gpt-6-luna":     (0.10, 0.50, "Free"),
@@ -145,6 +151,10 @@ _G4F_MODELS = ["deepseek-v4-pro", "deepseek-v4.1-flash", "glm-5.3", "glm-5.3-fla
 # exclusive: the provider only serves models from its own catalogue, so a call
 # for a model it does not know skips it and walks on down the chain. That is what
 # keeps the judges off Claude when Claude is doing the writing.
+_SHARED_ALIASES = {"opencode-go": "go", "opencode-zen": "zen", "openai-oauth": "oauth",
+                   "gpt4free": "g4f"}
+_SHARED_OPTIONS = provider_options()
+
 PROVIDERS: dict[str, dict] = {
     "claude": {"label": "Claude Code CLI — runs on your subscription, no key",
                "pro": "claude-opus-5-5", "flash": "sonnet", "exclusive": True,
@@ -177,12 +187,30 @@ PROVIDERS: dict[str, dict] = {
            "pro": "qwen3.8-flash", "flash": "deepseek-v4.1-flash",
            "exclusive": False, "alias": OPENCODE_ALIAS, "models": _HYPER_MODELS},
     "oauth":  {"label": "openai-oauth — local proxy on your ChatGPT account",
-               "pro": "gpt-6-sol", "flash": "gpt-6-luna",
+               "pro": "gpt-6.1-sol", "flash": "gpt-6-luna",
                "exclusive": True, "alias": {},
-               "models": ["gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4", "gpt-5.4-mini",
+               "models": ["gpt-6.1-sol", "gpt-6-sol", "gpt-6-luna", "gpt-6-astra", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.4", "gpt-5.4-mini",
                           "o3", "o3-mini", "o4-mini"],
                "base_url": _OAUTH_BASE_URL},
 }
+
+# ai-suite owns the catalogue; article-writer adds only role translation and legacy names.
+for _shared_name, _option in _SHARED_OPTIONS.items():
+    _name = _SHARED_ALIASES.get(_shared_name, _shared_name)
+    _existing = PROVIDERS.get(_name, {})
+    PROVIDERS[_name] = {
+        "label": _option["label"],
+        "pro": _existing.get("pro", _option["writing_model"]),
+        "flash": _existing.get("flash", _option["review_model"]),
+        "exclusive": _existing.get("exclusive", False),
+        "alias": _existing.get("alias", {}),
+        "models": list(_option["models"] or _existing.get("models", ())),
+        **{k: v for k, v in _existing.items() if k not in {"label", "pro", "flash", "exclusive", "alias", "models"}},
+    }
+    if not _option["needs_api_key"]:
+        PROVIDERS[_name]["keyless"] = True
+PROVIDERS = {_SHARED_ALIASES.get(name, name): PROVIDERS[_SHARED_ALIASES.get(name, name)]
+             for name in _SHARED_OPTIONS}
 
 
 _catalogue_cache: dict[str, list[str]] = {}
@@ -191,7 +219,7 @@ _catalogue_cache: dict[str, list[str]] = {}
 # The CLI route used to be called `opencode`; .env files still say so, and
 # silently dropping the name there would lose the chain's last link.
 def _canon(backend: str) -> str:
-    return "go" if backend == "opencode" else backend
+    return _SHARED_ALIASES.get(backend, "go" if backend == "opencode" else backend)
 
 
 def set_models(backend: str, pro: str = "", flash: str = "") -> None:
@@ -225,11 +253,15 @@ def parse_models(raw: str) -> dict[str, tuple[str, str]]:
 for _b, (_pro, _flash) in parse_models(os.environ.get("AW_MODELS", "")).items():
     set_models(_b, _pro, _flash)
 
+# Reasoning effort per provider and role, picked with each pair: `oauth:high/medium`
+# in AW_EFFORTS (the AW_MODELS syntax). "" = the provider's default.
+EFFORTS: dict[str, tuple[str, str]] = parse_models(os.environ.get("AW_EFFORTS", ""))
+
 
 def _default_chain() -> list[str]:
     raw = os.environ.get("AW_BACKEND", "hyper")
     chain = [_canon(b.strip().lower()) for b in raw.split(",")]
-    chain = [b for b in chain if b in PROVIDERS]
+    chain = list(dict.fromkeys(b for b in chain if b in PROVIDERS))
     # go has always been the implicit last resort; AW_OPENCODE_FALLBACK=0
     # is the old switch that turns it off, and it still does.
     if (len(chain) == 1 and "go" not in chain
@@ -246,11 +278,11 @@ PRO = os.environ.get("AW_MODEL_PRO") or PROVIDERS[CHAIN[0]]["pro"]
 FLASH = os.environ.get("AW_MODEL_FLASH") or PROVIDERS[CHAIN[0]]["flash"]
 
 
-# Fixed detector panel since 2026-09-26: opus 5.5 took kimi-k3's seat and gpt-6-astra
-# joined. Each lives on an exclusive provider (claude, oauth), so `_serves` sends it
+# Fixed detector panel since 2026-09-26: opus 5.5 took kimi-k3's seat and a gpt-6 judge
+# joined (gpt-6-astra until 2026-09-30, gpt-6.1-sol since). Each lives on an exclusive provider (claude, oauth), so `_serves` sends it
 # straight there. A judge that fails is skipped; if all fail, `humanize.llm_judges`
 # falls back to the drafting model.
-JUDGE_MODELS = ["claude-opus-5-5", "gpt-6-astra"]
+JUDGE_MODELS = ["claude-opus-5-5", "gpt-6.1-sol"]
 
 
 def _judges() -> list[str]:
@@ -261,7 +293,8 @@ JUDGES = _judges()
 
 
 def configure(chain: list[str] | None = None, pro: str = "", flash: str = "",
-              models: dict[str, tuple[str, str]] | None = None) -> None:
+              models: dict[str, tuple[str, str]] | None = None,
+              efforts: dict[str, tuple[str, str]] | None = None) -> None:
     """Repoint the router at runtime — what the wizard and the CLI flags call.
 
     Models default to the head provider's own pair, so switching provider without
@@ -270,6 +303,7 @@ def configure(chain: list[str] | None = None, pro: str = "", flash: str = "",
     global CHAIN, HEAD, PRO, FLASH, JUDGES
     for backend, (p, f) in (models or {}).items():
         set_models(backend, p, f)
+    EFFORTS.update(efforts or {})
     if chain:
         picked = [_canon(b) for b in chain if _canon(b) in PROVIDERS]
         if not picked:
@@ -282,12 +316,19 @@ def configure(chain: list[str] | None = None, pro: str = "", flash: str = "",
 
 
 def _serves(backend: str, model: str) -> bool:
-    prov = PROVIDERS[backend]
+    # Roles first: every link answers PRO/FLASH with its own pair (`_as`).
     if model in (PRO, FLASH):
         return True
+    # Fixed judges keep their owners even when another catalogue sells the same model.
+    owner = {"claude-opus-5-5": "claude", "gpt-6.1-sol": "oauth"}.get(model)
+    if owner:
+        return backend == owner
+    prov = PROVIDERS[backend]
+    if model in prov["models"]:
+        return True
     if prov["exclusive"]:
-        return model in prov["models"]
-    # A model an exclusive provider owns (the judges) is not tried on open gateways.
+        return False
+    # A model only an exclusive provider sells (claude's `sonnet`) is not tried on gateways.
     return not any(p["exclusive"] and model in p["models"] for p in PROVIDERS.values())
 
 
@@ -307,11 +348,21 @@ def _as(backend: str, model: str) -> str:
     return prov["alias"].get(model, model)
 
 
+def effort_for(backend: str, model: str) -> str:
+    """The effort picked for the role `model` (this provider's spelling) plays here;
+    "" for any other model, a judge included."""
+    pro, flash = EFFORTS.get(backend, ("", ""))
+    return pro if model == _as(backend, PRO) else flash if model == _as(backend, FLASH) else ""
+
+
 def describe() -> str:
-    backups = " ".join(f"{b}={PROVIDERS[b]['pro']}/{PROVIDERS[b]['flash']}"
+    def at(b: str, i: int) -> str:
+        e = EFFORTS.get(b, ("", ""))[i]
+        return f"@{e}" if e else ""
+    backups = " ".join(f"{b}={PROVIDERS[b]['pro']}{at(b, 0)}/{PROVIDERS[b]['flash']}{at(b, 1)}"
                        for b in CHAIN[1:])
     judges = "judge" if len(JUDGES) == 1 else "judges"
-    return (f"{' → '.join(CHAIN)} | PRO={PRO} FLASH={FLASH}"
+    return (f"{' → '.join(CHAIN)} | PRO={PRO}{at(HEAD, 0)} FLASH={FLASH}{at(HEAD, 1)}"
             + (f" | backups: {backups}" if backups else "")
             + f" | {judges}={', '.join(JUDGES)}")
 
@@ -432,33 +483,33 @@ def _quota_notice(out: str) -> bool:
 # module keeps what is article-writer's own: the provider chain, PRO/FLASH roles
 # and their per-provider translation, catalogues, key discovery, heartbeat, the
 # interactive recovery and JSON repair. AW_BOOK_WRITER overrides the path.
-BOOK_WRITER = pathlib.Path(os.environ.get("AW_BOOK_WRITER")
-                           or ROOT.parent / "book writer")
-
 # article-writer's backend names -> book writer's providers. Custom endpoints from the
 # game's settings ride the generic OpenAI-compatible client ("openrouter").
-SHARED = {"claude": "claude", "hyper": "hyper", "zen": "opencode-zen",
-          "grok": "grok", "go": "opencode-go", "oauth": "openai-oauth", "g4f": "gpt4free"}
+SHARED = {_SHARED_ALIASES.get(name, name): name for name in _SHARED_OPTIONS}
 
 _services: dict[tuple, Any] = {}
 _services_lock = threading.Lock()
 
 
-def shared_service(provider: str, overrides: dict[str, Any]) -> Any:
+def shared_service(provider: str, overrides: dict[str, Any], effort: str = "") -> Any:
     """book writer's AIService for `provider`, with article-writer's key/endpoint layered
     on top. One instance per distinct setting, shared by every thread."""
-    cache_key = (provider, tuple(sorted(overrides.items())))
+    cache_key = (provider, repr(sorted(overrides.items())), effort)
     with _services_lock:
         if cache_key not in _services:
             if str(BOOK_WRITER) not in sys.path:
                 sys.path.insert(0, str(BOOK_WRITER))
             from ai_book_creator.cli import provider_config_path
             from ai_book_creator.services.ai_service import AIService
-            _services[cache_key] = AIService(
+            service = AIService(
                 config_path=provider_config_path(provider),
                 usage_state_path=str(ROOT / "output" / "shared_ai_usage.json"),
                 allow_auth_prompt=False, client_max_retries=0,
-                config_overrides=dict(overrides))
+                config_overrides=dict(overrides),
+                log=lambda message: ui.status(f"[llm] {message}"))
+            # Always set, so an AI_*_EFFORT left in the environment never applies here.
+            service.set_reasoning_effort(effort or None)
+            _services[cache_key] = service
         return _services[cache_key]
 
 
@@ -468,8 +519,8 @@ def _send(backend: str, model: str, prompt: str, system: str | None, *,
     """One link of the chain: `model` (already in this provider's spelling) on `backend`."""
     spec = PROVIDERS[backend]
     provider = SHARED.get(backend, "openrouter")
-    if provider == "claude":
-        # The Claude Code CLI on the user's subscription: no key, no endpoint.
+    if provider in ("claude", "commandcode"):
+        # Subscription CLIs use their own login: no key or endpoint.
         overrides: dict[str, Any] = {"timeout": 1800}
     else:
         # Streamed, so the timeout is per chunk: a slow reasoning model outlives a
@@ -484,17 +535,22 @@ def _send(backend: str, model: str, prompt: str, system: str | None, *,
         if backend not in SHARED:
             overrides["headers"] = {}  # a custom endpoint gets no book-writer attribution headers
         if backend not in ("go", "oauth"):
-            # go reads opencode's own login and oauth the local proxy, inside book writer.
-            key = _key_for(spec)
+            # Shared providers resolve their own credentials; only legacy Article Writer
+            # endpoints need an explicit key override.
+            key = _key_for(spec) if spec.get("key_env") else ""
             # A keyless local server (g4f) with no key of its own gets no bearer at all.
-            if not key and not spec.get("keyless"):
+            if not key and not spec.get("keyless") and spec.get("key_env"):
                 # RuntimeError, not SystemExit: this provider may be one link in a
                 # chain, and a missing key here has to let the next one try.
                 raise RuntimeError(f"missing key for {backend}: set "
                                    f"{spec.get('key_env', 'AW_API_KEY')}=sk-... in article-writer/.env")
             if key:
                 overrides["api_key"] = key
-    out = shared_service(provider, overrides).generate_content(
+    effort = effort_for(backend, model)
+    if effort:
+        # AIService applies an effort only to its role models, so name this one as both.
+        overrides["writing_model"] = overrides["review_model"] = model
+    out = shared_service(provider, overrides, effort).generate_content(
         prompt, model=model, system=system, temperature=temperature,
         max_completion_tokens=max_tokens, max_retries=retries, wait_for_limits=wait)
     out = (out or "").strip()
@@ -519,6 +575,7 @@ def resolve_choice(raw: str, options: list[str]) -> str:
     """
     if raw.isdigit() and 1 <= int(raw) <= len(options):
         return options[int(raw) - 1]
+    raw = raw if raw in options else _canon(raw)   # ai-suite's provider names too
     return raw if raw in options else ""
 
 
@@ -544,9 +601,9 @@ def _recover() -> None:
             # Lazy import: main imports llm, so a module-level import would be
             # circular. pick_pair prints the provider's live catalogue and asks
             # for PRO/FLASH exactly like the wizard does.
-            pro, flash = __import__("main").pick_pair(prov)
+            pro, flash, effort = __import__("main").pick_pair(prov)
             rest = [b for b in CHAIN[1:] if b != prov]
-            configure([prov, *rest], pro, flash)
+            configure([prov, *rest], pro, flash, efforts={prov: effort})
             print(f"\n→ {describe()}\n")
             return
 
@@ -623,7 +680,7 @@ def chat(model: str, prompt: str, system: str | None = None, *,
         except Exception as e:  # noqa: BLE001 - that is what the next link is for
             errors.append(f"{backend}/{target}: {type(e).__name__}: {e}")
             if i + 1 < len(CHAIN):
-                ui.log(f"[error] {backend} not answering for {target}; moving on to "
+                ui.status(f"[llm] {backend} not answering for {target}; moving on to "
                       f"{CHAIN[i + 1]}")
     failure = RuntimeError(f"no provider answered for {model} — "
                            + " | ".join(errors or ["empty chain"]))

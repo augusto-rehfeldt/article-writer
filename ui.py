@@ -94,6 +94,7 @@ def _chatter(msg: str) -> bool:
     if _is_bar(first):  # bars have their own pinned line
         return False
     return (first.lstrip().startswith("·") or first.startswith("[llm]")
+            or first.startswith("[detector] round ")
             or "reusing" in first or "cached" in first
             or first.rstrip().endswith("…")  # «doing X…» announcements
             or (first[:1] == " " and not first.lstrip().startswith("[")))  # indented detail

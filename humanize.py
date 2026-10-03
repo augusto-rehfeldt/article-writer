@@ -422,6 +422,12 @@ KEYED_DETECTORS = [
 @functools.lru_cache(maxsize=1)
 def _hf_detector():
     try:
+        from transformers.utils import logging as hf_logging
+        from huggingface_hub.utils import logging as hub_logging, disable_progress_bars
+        hf_logging.set_verbosity_error()
+        hf_logging.disable_progress_bar()
+        hub_logging.set_verbosity_error()
+        disable_progress_bars()
         from transformers import pipeline as hf_pipeline
         return hf_pipeline("text-classification",
                            model="Hello-SimpleAI/chatgpt-detector-roberta",

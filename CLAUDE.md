@@ -26,12 +26,25 @@ in English.
   `revise()` moved to PRO on 2026-08-23: FLASH answered a report about invented
   citations by inventing more, and shipped «Now the final section text:» as prose. Since
   2026-09-26 the detector judges are a fixed panel, `llm.JUDGE_MODELS` =
-  `claude-opus-5-5` (on `claude`) + `gpt-6-astra` (on `oauth`); `llm._serves` sends a
+  `claude-opus-5-5` (on `claude`) + `gpt-6.1-sol` (on `oauth`); `llm._serves` sends a
   model owned by an exclusive provider only there. A failing judge is skipped; if every
   judge fails, `humanize.llm_judges` judges with the drafting model (FLASH, or PRO under
   `DRAFT_ROLE=pro`). An explicit `models=` list (the benches) never gets that stand-in.
   kimi-k3 is out of both this panel and `bench2.JUDGES`.
-- Providers: `claude`, `hyper`, `zen` (OpenCode Zen, OpenAI-compatible at
+- **The provider list is ai-suite's** (`ai_suite.providers.provider_options()`, in its
+  canonical order): every provider ai-suite ships — `commandcode`, `google`, `openai`,
+  `groq`, `minimax`, `openrouter`, `nvidia`… — is selectable in the wizard, the recovery
+  prompt, `AW_BACKEND` and `AW_MODELS`. ai-suite names are accepted everywhere and mapped
+  to the legacy local ones (`opencode-go`→`go`, `opencode-zen`→`zen`,
+  `openai-oauth`→`oauth`, `gpt4free`→`g4f`; `llm._canon`). The model menu is ai-suite's
+  `choose_ai` for every provider. Providers without a local `key_env` resolve their own
+  credentials inside AIService, so no Article Writer key ever crosses to them;
+  `commandcode` is keyless like `claude` (`_send` gives both only a 1800s timeout).
+  The fixed judges keep their owners (`_serves`: opus 5.5 only on `claude`, gpt-6.1-sol
+  only on `oauth`) even though CommandCode's catalogue also sells them — unless the judge
+  id is also PRO or FLASH, which walks the chain like any role call (`_serves` checks
+  roles first so a head whose PRO is `claude-opus-5-5` still has backups).
+- Legacy providers: `claude`, `hyper`, `zen` (OpenCode Zen, OpenAI-compatible at
   `https://opencode.ai/zen/v1`, key in `OPENCODE_API_KEY`), `grok` (xAI directo,
   OpenAI-compatible at `https://api.x.ai/v1`, key in `XAI_API_KEY`, URL
   override `AW_GROK_URL`), `oauth` (openai-oauth
@@ -167,6 +180,13 @@ in English.
   (FLASH optional), with `AW_MODELS` in `.env` (same syntax, parsed at import), or
   in the wizard, which asks per backup only if you say yes — six extra prompts for
   a chain that usually never runs is why it is opt-in. `describe()` prints them.
+- **Each link carries its own PRO/FLASH reasoning effort** (`llm.EFFORTS`, `.env`
+  `AW_EFFORTS="oauth:high/medium,claude:max/"`, same syntax as `AW_MODELS`, "" = provider
+  default). `pick_pair` asks it through `choose_ai`'s effort menu (the model's own levels)
+  and pops the `AI_*_EFFORT` it exports, so it never leaks into another link's service.
+  `_send` sends an effort only for the model playing PRO or FLASH on that link
+  (`effort_for`), never for a judge; `shared_service` caches one service per effort and
+  names the model as the service's role model, which is where AIService applies it.
 - `claude` is the Claude Code CLI in print mode (`claude -p`), running on the user's
   subscription instead of a metered key. It is marked `exclusive`, so it only ever answers for models in its own catalogue.
   Since the judges are PRO/FLASH themselves (2026-08-22), they ride the head provider
@@ -561,6 +581,24 @@ python test_article_writer.py               # self-check, no network, no API
   actually published. Delete the file to force the correction to run again. The verdict
   itself is deliberately *not* cached: a resume must re-ask PRO, or an edited article
   would keep its old rejection.
+- **Nothing goes live without a clean review of exactly the published file**
+  (2026-09-27). The linked-article incident: `APPARATUS_RULES` used to *invite* one note
+  per section about the making of the text («only the first chapter of Kurz is to
+  hand»), so finished posts carried «the available extract…», «the dossier
+  identifies…», a 1909 copyright read as a date, and `[dato a verificar]`; and
+  `--publish vivo` posted an article whose `08_approval.json` said `publicable: false`.
+  Now: the rule forbids process notes (subject-matter copyright/edition scholarship is
+  still fine); `REVIEW_PROMPT` checks uncited attributions and residue; `revise()`
+  honours the reviewer's `citas_a_eliminar` (only those keys may disappear);
+  `_final_review()` reviews the text after humanizing/correction (`06_review_final.json`,
+  hash-cached) with one patch round; `final_approval()` sees the evidence and that
+  review and only passes with `review_passed()` (no `alta`, no refused citation) and a
+  matching `text_hash`; `assemble()` rebinds `text_hash` to the whole `05_final.md` and
+  vetoes on `editorial_issues()` (narrow regexes for placeholders and source-access
+  notes, not a factuality check). `publish.publish()`/`publish_run()` call
+  `pipeline.require_publishable()` before the cover search or any request for
+  `status="publish"`; `main.run_once` falls back to a draft. Drafts need no approval.
+  Key membership in the dossier is identity, not support.
 - Publishing defaults to `draft`. `--publish auto` only goes live when PRO
   returned `publicable` **and** the detector score is under `--threshold`.
   `final_approval()` coerces `publicable` to a real bool (a model's `"false"` string

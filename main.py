@@ -122,21 +122,29 @@ def edit_interests(read=input) -> None:
     print(ui.c(f"Saved {len(areas)} interests to {f.name}.", ui.GREEN))
 
 
-def pick_pair(prov: str) -> tuple[str, str]:
-    """Ask for a provider's PRO/FLASH pair.
+def provider_arg(name: str) -> str:
+    """--provider accepts ai-suite's names (opencode-go) as well as the local ones."""
+    return llm._canon(name.strip().lower())
 
-    Providers book writer also serves go through its shared menu (`choose_ai`: live
-    catalogue, context, price, AA index), so every AI script picks models the same way.
+
+def pick_pair(prov: str) -> tuple[str, str, tuple[str, str]]:
+    """Ask for a provider's PRO/FLASH pair and their efforts ("" = provider default).
+
+    Providers ai-suite also serves go through its shared menu (`choose_ai`: live
+    catalogue, context, price, AA index, the model's own effort levels), so every AI
+    script picks models the same way.
     """
     if SHARED_MENU and prov in llm.SHARED:
-        if str(llm.BOOK_WRITER) not in sys.path:
-            sys.path.insert(0, str(llm.BOOK_WRITER))
-        from ai_book_creator.cli import choose_ai
+        import os
+        from ai_suite import choose_ai
         _, _, (pro, flash) = choose_ai(
             llm.SHARED[prov], roles=("PRO", "FLASH"),
             defaults=(llm.PROVIDERS[prov]["pro"], llm.PROVIDERS[prov]["flash"]),
             state_file=ROOT / "output" / "provider_state.json")
-        return pro, flash
+        # choose_ai exports one process-wide pair; each link of the chain keeps its own
+        # (llm.EFFORTS), so take them out of the environment.
+        efforts = (os.environ.pop("AI_WRITING_EFFORT", ""), os.environ.pop("AI_REVIEW_EFFORT", ""))
+        return pro, flash, efforts
     catalogue = llm.catalogue(prov)
     live = [m for m in catalogue if m not in llm.PROVIDERS[prov]["models"]]
     print("\n" + ui.c(f"{prov} models:", ui.BOLD) + " "
@@ -158,30 +166,55 @@ def pick_pair(prov: str) -> tuple[str, str]:
                    catalogue, llm.PROVIDERS[prov]["pro"])
     flash = ask_free("FLASH — queries, outline, drafting, rewriting",
                      catalogue, llm.PROVIDERS[prov]["flash"])
-    return pro, flash
+    # ponytail: typed menu asks no effort (like ai-suite's); AW_EFFORTS covers it.
+    return pro, flash, llm.EFFORTS.get(prov, ("", ""))
 
 
 def pick_models() -> None:
-    """Provider, models and backup order. Writes straight into llm's router."""
-    before = (tuple(llm.CHAIN), llm.PRO, llm.FLASH)
+    """Provider, models, efforts and backup order. Writes straight into llm's router."""
+    before = (tuple(llm.CHAIN), llm.PRO, llm.FLASH, dict(llm.EFFORTS))
     provs = list(llm.PROVIDERS)
-    print("\n" + ui.c("Providers:", ui.BOLD))
-    for i, k in enumerate(provs, 1):
-        p = llm.PROVIDERS[k]
-        print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k:<9} {ui.c(p['label'], ui.DIM)}")
-        print(f"     {ui.c('default: PRO=' + p['pro'] + '  FLASH=' + p['flash'], ui.DIM)}")
-        if k == "oauth":
-            print(f"     {ui.c(llm.oauth_value_summary(), ui.DIM)}")
-    main_prov = ask_choice("Main provider", provs, llm.CHAIN[0])
+    # ai-suite's arrow menu on a console, like every other AI script; it returns
+    # None off one, so piped input keeps the numbered list.
+    main_prov = None
+    if SHARED_MENU:
+        from ai_suite.providers import _arrow_menu
+        width = max(map(len, provs))
+        main_prov = _arrow_menu("Main provider", [
+            (k, f"{k:<{width}}  {llm.PROVIDERS[k]['label']}"
+                + ("  (default)" if k == llm.CHAIN[0] else "")) for k in provs],
+            llm.CHAIN[0])
+    if main_prov is None:
+        print("\n" + ui.c("Providers:", ui.BOLD))
+        for i, k in enumerate(provs, 1):
+            p = llm.PROVIDERS[k]
+            print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k:<9} {ui.c(p['label'], ui.DIM)}")
+            print(f"     {ui.c('default: PRO=' + p['pro'] + '  FLASH=' + p['flash'], ui.DIM)}")
+            if k == "oauth":
+                print(f"     {ui.c(llm.oauth_value_summary(), ui.DIM)}")
+        main_prov = ask_choice("Main provider", provs, llm.CHAIN[0])
 
-    pro, flash = pick_pair(main_prov)
+    pro, flash, effort = pick_pair(main_prov)
+    efforts = {main_prov: effort}
 
     rest = [p for p in provs if p != main_prov]
-    print("\n" + ui.c("Backups", ui.BOLD) + ui.c(
-        " — in order, comma-separated; «no» for none.", ui.DIM))
-    for i, k in enumerate(rest, 1):
-        print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k}")
-    backups = ask_order("Backups", rest, ",".join(rest))
+    # Default: the backups already configured, not every provider ai-suite knows.
+    current = [b for b in llm.CHAIN if b != main_prov]
+    picked = None
+    if SHARED_MENU:
+        from ai_suite.providers import _arrow_menu
+        width = max(map(len, rest))
+        picked = _arrow_menu("Backups (Space in fallback order)", [
+            (k, f"{k:<{width}}  {llm.PROVIDERS[k]['label']}") for k in rest],
+            ",".join(current), multi=True, name="Backups")
+    if picked is not None:
+        backups = [b for b in picked.split(",") if b]
+    else:
+        print("\n" + ui.c("Backups", ui.BOLD) + ui.c(
+            " — in order, comma-separated; «no» for none.", ui.DIM))
+        for i, k in enumerate(rest, 1):
+            print(f"  {ui.c(str(i) + ')', ui.CYAN)} {k}")
+        backups = ask_order("Backups", rest, ",".join(current) or "no")
 
     # Each backup answers with its own pair; asking for all of them every time is
     # six extra prompts for a chain that usually never gets used, so it is opt-in.
@@ -191,16 +224,19 @@ def pick_models() -> None:
             f"{ui.c('(Enter = each provider\'s defaults)', ui.DIM)} [y/N]: "
     ).strip().lower().startswith(("y", "s")):
         for b in backups:
-            models[b] = pick_pair(b)
+            b_pro, b_flash, efforts[b] = pick_pair(b)
+            models[b] = (b_pro, b_flash)
 
-    llm.configure([main_prov, *backups], pro, flash, models)
+    llm.configure([main_prov, *backups], pro, flash, models, efforts)
     print("\n" + ui.c("→ " + llm.describe(), ui.GREEN))
     # Nothing changed: whatever .env (or the built-in default) already says is
     # exactly this, so there is nothing to save and nothing to ask.
-    if (tuple(llm.CHAIN), llm.PRO, llm.FLASH) == before and not models:
+    if (tuple(llm.CHAIN), llm.PRO, llm.FLASH, llm.EFFORTS) == before and not models:
         return
     pairs = {"AW_BACKEND": ",".join(llm.CHAIN),
-             "AW_MODEL_PRO": llm.PRO, "AW_MODEL_FLASH": llm.FLASH}
+             "AW_MODEL_PRO": llm.PRO, "AW_MODEL_FLASH": llm.FLASH,
+             "AW_EFFORTS": ",".join(f"{b}:{p}/{f}" for b, (p, f) in llm.EFFORTS.items()
+                                    if p or f)}
     if models:
         pairs["AW_MODELS"] = ",".join(
             f"{b}:{llm.PROVIDERS[b]['pro']}/{llm.PROVIDERS[b]['flash']}"
@@ -306,7 +342,11 @@ def run_once(args: argparse.Namespace, resume: str = "",
                           threshold=threshold)
     status = wp_status(run, args.publicar, threshold)
     if status:
-        publish.publish_run(run.dir, status=status)
+        try:
+            publish.publish_run(run.dir, status=status)
+        except ValueError as e:  # not approved for exactly this text: never live
+            ui.log(f"[publish] {e} Uploading as a draft instead.")
+            publish.publish_run(run.dir, status="draft")
     return run
 
 
@@ -409,7 +449,8 @@ def main() -> int:
                    choices=["no", "draft", "auto", "live"],
                    help="upload: always as draft, auto (live only if approved and under "
                         "the detector threshold) or always live")
-    p.add_argument("--provider", dest="proveedor", default="", choices=["", *llm.PROVIDERS],
+    p.add_argument("--provider", dest="proveedor", default="", type=provider_arg,
+                   choices=["", *llm.PROVIDERS],
                    help="main provider (default: AW_BACKEND or hyper)")
     p.add_argument("--backups", dest="respaldo", default="", metavar="A,B",
                    help="backup providers, in order; 'no' for none")
@@ -422,7 +463,8 @@ def main() -> int:
     p.add_argument("--wizard", action="store_true",
                    help="ask for provider, models and format even when other flags are given")
     p.add_argument("--continuous", dest="continuo", type=int, default=None, metavar="N",
-                   help="write N articles in a row, picking topics itself; 0 = never stop")
+                   help="write N articles; --topic guides the first new article, then "
+                        "topics are picked automatically; 0 = never stop")
     p.add_argument("--every", dest="cada", type=int, default=0, metavar="MIN",
                    help="minutes to pause between articles in continuous mode")
     args = p.parse_args()
@@ -516,7 +558,7 @@ def main() -> int:
     if args.continuo is not None:
         # Nothing is watching: every interactive gate has to be off, or the loop
         # blocks forever on an input() nobody will answer.
-        args.mode, args.sin_biblioteca, args.tema = "auto", True, ""
+        args.mode, args.sin_biblioteca = "auto", True
         return loop(args)
 
     run_once(args, resume=args.resume)

@@ -26,7 +26,7 @@ import unicodedata
 
 import requests
 
-from pipeline import slugify
+from pipeline import require_publishable, slugify
 
 # Markdown emitted by ``pipeline.assemble`` is deliberately plain: an H1 title,
 # H2 section headings, paragraphs, and *emphasis* in the reference list. A real
@@ -301,14 +301,18 @@ def _publish_devto(markdown: str, *, status: str, excerpt: str, cover: dict | No
 
 
 def publish(markdown: str, *, status: str = "draft", excerpt: str = "",
-            timeout: int = 90, log=print) -> dict | None:
+            timeout: int = 90, log=print, approval: dict | None = None) -> dict | None:
     """POST one article. Returns the created post's JSON, or None if not configured.
 
     ``status`` is ``draft`` or ``publish``. Anything else is rejected rather than
-    handed to WordPress, which would silently coerce it.
+    handed to WordPress, which would silently coerce it. Going live needs
+    ``approval`` (``08_approval.json``) passed for exactly this Markdown; it is
+    checked before the cover search or any request.
     """
     if status not in ("draft", "publish", "pending", "private"):
         raise ValueError(f"invalid WordPress status: {status!r}")
+    if status == "publish":
+        require_publishable(markdown, approval)
     if not configured():
         log("[publish] the publishing target is not configured (AW_PUBLISH_TARGET / "
             "DEVTO_API_KEY or AW_WP_*); uploading nothing.")
@@ -359,7 +363,13 @@ def publish_run(run_dir: pathlib.Path, *, status: str = "draft", log=print) -> d
     if not final.exists():
         log(f"[publish] no 05_final.md in {run_dir}")
         return None
-    post = publish(final.read_text(encoding="utf-8"), status=status, log=log)
+    approval = None
+    if (verdict := run_dir / "08_approval.json").exists():
+        approval = json.loads(verdict.read_text(encoding="utf-8"))
+    markdown = final.read_text(encoding="utf-8")
+    if status == "publish":
+        require_publishable(markdown, approval)
+    post = publish(markdown, status=status, log=log, approval=approval)
     if post:
         receipt.write_text(json.dumps(
             {"id": post.get("id"), "link": post.get("link") or post.get("url"),

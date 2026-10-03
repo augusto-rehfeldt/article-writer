@@ -185,7 +185,12 @@ APA_RULES = """- Cite in APA style (7th edition), with the conventions of the ou
   forbidden: «a recent study», «according to consultancy reports», «the literature
   shows», «it is estimated that», «several studies agree». Either cited, or out.
 - The same goes for figures: a percentage, an amount or a rate without (Surname, year)
-  beside it is not written. If the figure is needed and missing, mark [to verify]."""
+  beside it is not written. If evidence is missing, omit or narrow the claim; never leave
+  a placeholder in finished prose.
+- Substantive author/work attributions, quotations and historical claims also need a
+  supporting citation at the relevant passage. Key membership is NOT proof of support.
+  Add citations only when the supplied evidence supports the claim; do not inflate counts
+  or invent references, pages, dates, editions, quotations or source access."""
 
 
 def wmid(spec: dict) -> int:
@@ -883,10 +888,11 @@ APPARATUS_RULES = """- FOOTNOTE APPARATUS. This section may carry up to {notas_m
   clarification is necessary and faithful to the passage, never to fake documentary work.
 - Use the typographic conventions of the article's language. Figures, technical terms
   and titles keep their precision; do not add ornaments for variety.
-- THE HAND THAT WRITES. Once in the whole section, no more, the text may admit something
-  about its own making: which source was only available as an excerpt, which edition was
-  read, what could not be verified, where the material stops. It is a dry statement of
-  work, with no confession or complaint: «only the first chapter of Kurz (1998) is to
+- FINISHED PROSE ONLY. Keep source-access limitations, dossier/excerpt availability,
+  copyright-policy refusals and editorial instructions in private review reports, never
+  in the article or its footnotes. Legitimate scholarly discussion of copyright, editions
+  and methodological limitations is allowed when supported. Do not describe which sources
+  the writing process could access. Never add process notes such as «only the first chapter of Kurz (1998) is to
   hand, and what follows rests on it»."""
 
 
@@ -1182,6 +1188,14 @@ Assess without mercy:
 - Is the hypothesis defended with arguments, or merely declaimed?
 - Are there conceptual errors about Marx, value critique, political economy?
 - Do the citations support what they are made to say, or are they decorative?
+  Check substantive author/work attributions, quotations and historical claims even when
+  uncited. Matching a dossier key is not evidence of support. Require a supported citation
+  at the passage or narrow/remove the claim; never invent missing evidence or source access.
+  Flag dossier/excerpt-access notes, copyright-policy refusals, editorial instructions and
+  placeholders as high severity. Legitimate copyright scholarship and evidenced discussion
+  of editions or methodological limitations are allowed, not production leakage.
+  Review the abstract, notes and reference list too when present. Cite only the edition
+  supported by the evidence; a copyright date is not automatically a publication date.
 - Does the citation style follow APA 7 in the article's language —(Surname, year),
   two authors, (Surname et al., year), (Surname, year, p. 302) for verbatim quotes— or
   are formats mixed?
@@ -1244,7 +1258,12 @@ def review(run: Run, text: str, topic: dict, sources: list[research.Source]) -> 
         fuentes=_sources_block(sources, used, 30000),
         bad=", ".join(unknown[:30]) or "(none)", text=text[:120000]) + _lang(),
 temperature=0.35)
+    rep["text_hash"] = humanize.text_hash(text)
     rep["citas_validas"] = used
+    if len(text) > 120000 or editorial_issues(text):
+        rep.setdefault("problemas", []).append({"gravedad": "alta", "seccion": "final",
+            "problema": "Production residue or text exceeds complete-review context.",
+            "correccion": "Remove production residue; do not approve an unread tail."})
     rep["citas_sin_respaldo"] = unknown
     run.log(f"[review] verdict: {rep.get('veredicto')} ({rep.get('puntaje')}/100), "
             f"{len(rep.get('problemas', []))} problems")
@@ -1258,11 +1277,11 @@ flagged; do not touch what works, or the style.
 REPORT:
 {report}
 
-NON-NEGOTIABLE RULE ON CITATIONS: these citations are verified against the bibliography \
-and MUST remain in the corrected text —{ok}—. If the report calls a citation decorative, \
-the fix is NOT to delete it: it is to make it work, showing what the source supports and \
-why it matters to the argument. A patch that drops verified citations, or introduces one \
-that is not in the sources below, is discarded whole.
+NON-NEGOTIABLE RULE ON CITATIONS: these keys exist in the bibliography —{ok}—, but key \
+membership does not establish claim support. Preserve them EXCEPT keys explicitly named \
+in the report's citas_a_eliminar. For those, narrow/remove the unsupported attribution or \
+replace it with a claim and citation supported by the supplied passages. All other citation \
+removals and all invented keys are rejected.
 
 Citations without bibliographic backing — those, yes: remove them or replace them with \
 one of the verified keys above.
@@ -1303,8 +1322,12 @@ def _apply_patch(text: str, find: str, repl: str) -> str | None:
 
 def revise(run: Run, text: str, report: dict, sources: list[research.Source]) -> str:
     problems = [p for p in report.get("problemas", []) if p.get("gravedad") != "baja"]
-    if not problems and not report.get("citas_sin_respaldo"):
+    if not problems and not report.get("citas_sin_respaldo") and not report.get("citas_a_eliminar"):
         return text
+    # The reviewer writes citations however it likes («Smith, 2020», «(Smith, 2020)»,
+    # «Smith (2020)»); resolve them the way the text's own citations are resolved.
+    authorized = set(research.verify_citations(
+        " ".join(f"({c})" for c in report.get("citas_a_eliminar", [])), sources)[0])
     run.log(f"[review] applying {len(problems)} corrections…")
     valid = report.get("citas_validas", [])
     fuentes = _sources_block(sources, valid, 30000)
@@ -1318,7 +1341,8 @@ def revise(run: Run, text: str, report: dict, sources: list[research.Source]) ->
     # is now checked and kept or dropped on its own.
     answer = llm.chat_json(llm.PRO, REVISE_PROMPT.format(
         report=json.dumps({"problemas": problems,
-                           "citas_a_eliminar": report.get("citas_sin_respaldo", []),
+                           "citas_a_eliminar": report.get("citas_a_eliminar", []),
+                           "citas_sin_respaldo": report.get("citas_sin_respaldo", []),
                            "falta_desarrollar": report.get("falta_desarrollar", [])},
                           ensure_ascii=False, indent=2),
         ok=", ".join(valid[:60]) or "(none yet)", apa=APA_RULES,
@@ -1329,12 +1353,10 @@ def revise(run: Run, text: str, report: dict, sources: list[research.Source]) ->
         find, repl = (p.get("buscar") or ""), (p.get("reemplazar") or "")
         if not find.strip():
             continue
-        # A revision that strips the bibliography is worse than no revision at all:
-        # "this citation is decorative" must not be answered by deleting the citation,
-        # and a correction must not invent a source to cite either.
+        # Only explicit reviewer authorization can relax citation preservation.
         had, _ = research.verify_citations(find, sources)
         keeps, unknown = research.verify_citations(repl, sources)
-        if set(had) - set(keeps) or unknown:
+        if set(had) - set(keeps) - authorized or unknown:
             lost += 1
             continue
         out = _apply_patch(revised, find, repl)
@@ -1348,7 +1370,61 @@ def revise(run: Run, text: str, report: dict, sources: list[research.Source]) ->
     return revised
 
 
-def final_approval(run: Run, text: str, topic: dict, det: dict) -> dict:
+def editorial_issues(text: str) -> list[str]:
+    """High-confidence production residue only; this is not a factuality detector."""
+    patterns = (
+        r"\[(?:dato a verificar|to verify|data to verify|citation needed|insert (?:citation|source)|cita requerida)\]",
+        r"(?:now the final section text|writing now|ahora el texto final de la sección)\s*[:.]",
+        r"(?:dossier.{0,80}(?:excerpt|available here|contents|source access|bylines?)|(?:excerpt|extracto).{0,40}(?:del |the )?dossier)",
+        r"\[(?:verificar|cita|fuente|todo|citation|source|tbd)\]",
+        r"(?:supplied|provided) (?:excerpt|extract)|(?:extracto|fragmento) (?:suministrado|proporcionado)",
+        r"\bonly [^.]{0,60}\b(?:is|are) to hand\b",
+        r"(?:I (?:cannot|can't)|no puedo).{0,100}(?:copyright|derechos de autor)",
+    )
+    return [m.group(0) for pattern in patterns for m in re.finditer(pattern, text, re.I)]
+
+
+def review_passed(report: dict) -> bool:
+    """No rejection, no high-severity finding, no citation the reviewer or the
+    verifier refused. Medium findings are the revise loop's job, not a veto: a
+    PRO report nearly always carries some, and vetoing on them would block every run."""
+    return (report.get("veredicto") in ("aprobado", "revisar")
+            and not report.get("citas_sin_respaldo") and not report.get("citas_a_eliminar")
+            and not any(p.get("gravedad") == "alta" for p in report.get("problemas", [])))
+
+
+def _final_review(run: Run, text: str, topic: dict, sources: list[research.Source]) -> dict:
+    """A review of exactly the text going to approval. The review rounds read the
+    draft before humanizing and correction, so their report says nothing about
+    what is actually published. Cached by hash, so a resume does not pay again."""
+    cached = run.load("06_review_final.json")
+    if cached and cached.get("text_hash") == humanize.text_hash(text):
+        run.log("[review] reusing 06_review_final.json")
+        return cached
+    rep = {**review(run, text, topic, sources), "text_hash": humanize.text_hash(text)}
+    run.save("06_review_final.json", rep)
+    return rep
+
+
+def require_publishable(text: str, approval: dict | None) -> None:
+    """Shared, offline live-publication boundary. Draft uploads need no approval."""
+    if (not isinstance(approval, dict) or approval.get("publicable") is not True
+            or approval.get("semantic_review_passed") is not True
+            or approval.get("text_hash") != humanize.text_hash(text)
+            or editorial_issues(text)):
+        raise ValueError("Live publication requires a clean substantive approval for the exact final Markdown.")
+
+
+def final_approval(run: Run, text: str, topic: dict, det: dict,
+                   sources: list[research.Source] | None = None, report: dict | None = None,
+                   abstract: str = "") -> dict:
+    sources, report = sources or [], report or {}
+    used, unknown = research.verify_citations(text, sources)
+    # ponytail: bounded model context; oversized finals fail closed rather than certify an unread tail.
+    complete = len(text) <= 120000
+    semantic_ok = (bool(sources) and review_passed(report) and complete
+                   and report.get("text_hash") == humanize.text_hash(text)
+                   and not unknown and not editorial_issues(text))
     run.log("[approval] PRO's final verdict…")
     verdict = llm.chat_json(llm.PRO, f"""Final approval. Decide whether this text is published.
 
@@ -1357,18 +1433,35 @@ prose that sounds like a human author with a voice of their own and not like a l
 
 AI detector score (0 = human, 100 = machine): {det.get('final_score')}
 
+SOURCE EVIDENCE (key membership alone does not prove support):
+{_sources_block(sources, used, 30000)}
+
+LATEST SUBSTANTIVE REVIEW (unresolved material findings forbid approval):
+{json.dumps(report, ensure_ascii=False)}
+
+Check the whole text, its footnotes and the abstract below. Reject
+unsupported attributions, quotes, figures and historical claims, mismatched editions,
+production/source-access commentary and placeholders. Do not reject legitimate scholarship
+about copyright or methodological limitations. Never invent support absent from evidence.
+
 Return JSON: {{"publicable": true|false, "puntaje": 0-100, \
 "dictamen": "3-6 lines", "ajustes_menores": ["..."]}}
 
 TITLE: {topic['titulo']}
 
-{text[:100000]}""" + _lang(), temperature=0.3)
+ABSTRACT: {abstract or '(none)'}
+
+{text[:120000]}""" + _lang(), temperature=0.3)
     if not isinstance(verdict, dict):
         verdict = {"dictamen": f"unreadable answer: {str(verdict)[:200]}"}
     # «"publicable": "false"» is a truthy string: read as approval it skipped the
     # edit gate and let `--publish auto` go live. Only an explicit yes counts.
     said = verdict.get("publicable")
     verdict["publicable"] = said is True or str(said).strip().lower() in ("true", "sí", "si", "yes")
+    verdict.update(publicable=verdict["publicable"] and semantic_ok,
+                   semantic_review_passed=semantic_ok, text_hash=humanize.text_hash(text))
+    if not semantic_ok:
+        verdict["dictamen"] = "Substantive review missing, stale, incomplete or unresolved; publication blocked."
     run.log(f"[approval] publishable={verdict.get('publicable')} "
             f"({verdict.get('puntaje')}/100)")
     return verdict
@@ -1382,7 +1475,8 @@ def assemble(run: Run, topic: dict, outline: dict, text: str,
              sources: list[research.Source], report: dict, det: dict,
              verdict: dict) -> str:
     spec = FORMATS[run.fmt]
-    used, _ = research.verify_citations(text, sources)
+    cited_text = text + ("\n" + outline.get("resumen", "") if spec["apparatus"] else "")
+    used, _ = research.verify_citations(cited_text, sources)
     today = dt.date.today()
     en = LANG == "en"
     month = MONTHS[today.month - 1]
@@ -1400,6 +1494,12 @@ def assemble(run: Run, topic: dict, outline: dict, text: str,
     if refs := research.bibliography(sources, used, lang=LANG).strip():
         body += ["", "", "## References" if en else "## Referencias", "", refs]
     doc = "\n".join(body)
+    # The approval was given to the body; what gets published is the assembled page
+    # (title, abstract, references). Bind it to that exact file, and let residue in
+    # the abstract veto it like residue in the body would.
+    if editorial_issues(doc):
+        verdict.update(publicable=False, semantic_review_passed=False)
+    verdict["text_hash"] = humanize.text_hash(doc)
     run.save("05_final.md", doc)
     run.save("06_review.json", report)
     run.save("07_detector.json", det)
@@ -1426,7 +1526,9 @@ def run_pipeline(run: Run, *, rounds: int = 2, detector_rounds: int = 3,
         # draft, and a resume that re-derives it pays it again for the same verdict.
         # The report is saved before the corrections are applied, so a crash mid-revise
         # resumes on the corrections instead of re-reviewing.
-        if (cached := run.load(f"06_review_r{i}.json")):
+        # Reports saved before the hash existed are trusted: re-reviewing them costs PRO.
+        if ((cached := run.load(f"06_review_r{i}.json"))
+                and cached.get("text_hash", humanize.text_hash(text)) == humanize.text_hash(text)):
             run.log(f"[review] reusing 06_review_r{i}.json (round {i})")
             report = cached
         else:
@@ -1508,11 +1610,24 @@ def run_pipeline(run: Run, *, rounds: int = 2, detector_rounds: int = 3,
         used, unknown = research.verify_citations(text, sources)
         report["citas_validas"], report["citas_sin_respaldo"] = used, unknown
 
+    # Review what will actually be published; one round of patches if it fails.
+    report = _final_review(run, text, topic, sources)
+    if not review_passed(report) and not fixed:
+        patched = revise(run, text, report, sources)
+        # Saved even when unchanged: it marks the attempt, so a resume does not pay again.
+        run.save("04_draft_corregido.md", patched)
+        if patched != text:
+            text = patched
+            report = _final_review(run, text, topic, sources)
+    used, unknown = research.verify_citations(text, sources)
+    report["citas_validas"], report["citas_sin_respaldo"] = used, unknown
+
     if det.get("text_hash") != humanize.text_hash(text):
         _, det = humanize.humanize(text, rounds=1 if detector_rounds > 0 else 0,
                                    threshold=threshold, log=run.log, lang=LANG)
     run.save("07_detector.json", det)
-    verdict = final_approval(run, text, topic, det)
+    verdict = final_approval(run, text, topic, det, sources, report,
+                             outline.get("resumen", "") if FORMATS[run.fmt]["apparatus"] else "")
     if unknown:
         verdict.update(publicable=False, dictamen="Unbacked citations remain.")
     # PRO's rejections are usually minutes of hand editing ("[dato a verificar]" left in,
@@ -1526,7 +1641,7 @@ def run_pipeline(run: Run, *, rounds: int = 2, detector_rounds: int = 3,
         # resume branch above reads back, so an edit outlives a Ctrl-C at this prompt.
         run.save("04_draft_corregido.md", text)
         choice = run.ask(f"Not approved. [e]dit {run.dir / '04_draft_corregido.md'} "
-                         "and review again, [p]ublish anyway, [n]ot publish [e/p/N]",
+                         "and review again, [p]ublish anyway (as a draft if live needs approval), [n]ot publish [e/p/N]",
                          "n").strip().lower()[:1]
         if choice != "e":
             if choice != "p":
@@ -1542,7 +1657,9 @@ def run_pipeline(run: Run, *, rounds: int = 2, detector_rounds: int = 3,
         if det.get("text_hash") != humanize.text_hash(text):
             _, det = humanize.humanize(text, rounds=1 if detector_rounds > 0 else 0,
                                        threshold=threshold, log=run.log, lang=LANG)
-        verdict = final_approval(run, text, topic, det)
+        report = _final_review(run, text, topic, sources)
+        verdict = final_approval(run, text, topic, det, sources, report,
+                             outline.get("resumen", "") if FORMATS[run.fmt]["apparatus"] else "")
         if unknown:
             verdict.update(publicable=False, dictamen="Unbacked citations remain.")
     doc = assemble(run, topic, outline, text, sources, report, det, verdict)

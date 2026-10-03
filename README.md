@@ -81,7 +81,7 @@ python main.py --spanish --fmt medium           # article in Spanish (English is
 | `--publish no\|draft\|auto\|live` | upload as draft, live if approved and under the threshold, or always live |
 | `--provider`, `--backups A,B`, `--pro`, `--flash`, `--models` | provider chain and models (see Models) |
 | `--wizard` | the wizard asks even when other flags are given |
-| `--continuous N`, `--every MIN` | N articles in a row, picking topics itself (0 = never stop), with a pause between them |
+| `--continuous N`, `--every MIN` | N articles in a row (0 = never stop); `--topic` guides the first new article, then topics are picked automatically; `--every` sets the pause |
 
 **You set the topic.** With `--topic` you give a hint and the system proposes five
 angles to choose from. With `--topic --exact-topic` it writes about that and nothing
@@ -208,7 +208,7 @@ editorial and documentary review.
 The report separates three signals:
 
 1. Local stylometry: diagnostics for revising the prose, not an approval decision.
-2. LLM judges: a fixed panel (`claude-opus-5-5` on `claude`, `gpt-6-astra` on
+2. LLM judges: a fixed panel (`claude-opus-5-5` on `claude`, `gpt-6.1-sol` on
    `oauth`), over the opening, middle and end of long texts. If every judge fails,
    the drafting model judges instead.
 3. External detectors: the configured services and, in English, the optional local
@@ -246,7 +246,7 @@ that another detector will accept the text, nor that its claims are correct.
 |---|---|---|
 | PRO | the main provider's | topic, outline audit, review, corrections, final approval |
 | FLASH | the main provider's | queries, outline, drafting, rewriting |
-| Judges | `claude-opus-5-5`, `gpt-6-astra` | detecting generated text |
+| Judges | `claude-opus-5-5`, `gpt-6.1-sol` | detecting generated text |
 
 Each backup in the chain answers with its own models (`--models`, `AW_MODELS`):
 
@@ -257,7 +257,7 @@ Each backup in the chain answers with its own models (`--models`, `AW_MODELS`):
 | `zen` | `glm-5.3-flash` / `deepseek-v4.1-flash` |
 | `grok` | `grok-4` / `grok-4-fast` |
 | `g4f` | `deepseek-v4-pro` / `glm-5.3` |
-| `oauth` | `gpt-6-sol` / `gpt-6-luna` |
+| `oauth` | `gpt-6.1-sol` / `gpt-6-luna` |
 
 Change them in `.env` (`AW_BACKEND`, `AW_MODEL_PRO`, `AW_MODEL_FLASH`, `AW_MODELS`),
 with flags (`--provider/--backups/--pro/--flash/--models`) or in the interactive

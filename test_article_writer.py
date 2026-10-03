@@ -23,6 +23,120 @@ import publish
 import research
 import style
 
+def test_editorial_residue_is_narrow_and_bilingual() -> None:
+    for text in ("A claim [dato a verificar].", "[data to verify]", "Now the final section text:",
+                 "The dossier excerpt available here stops at the contents.",
+                 "El extracto del dossier solo incluye el índice.",
+                 "I cannot provide that quotation due to copyright restrictions.",
+                 "The dossier keys are outlet names, not verified bylines.",
+                 "Only the first chapter of Kurz (1998) is to hand.",
+                 "The supplied excerpt gives chapter headings only.",
+                 "A figure [verificar] and a gap [TODO]."):
+        assert pipeline.editorial_issues(text), text
+    for text in ("Copyright law shaped publishing markets (Smith, 2020).",
+                 "El copyright regula las ediciones; este extracto ilustra el argumento.",
+                 "The edition's copyright date differs from its publication date.",
+                 "The only available extract of the Grundrisse is in English.",
+                 "Means of subsistence are to hand when wages are paid."):
+        assert not pipeline.editorial_issues(text), text
+
+
+def test_reviewer_can_authorize_only_named_citation_removals() -> None:
+    from unittest.mock import patch
+    sources = research.assign_keys([research.Source(title="A", authors=["Ana Smith"], year="2020"),
+                                   research.Source(title="B", authors=["Robert Kurz"], year="2016")])
+    text = "Unsupported (Smith, 2020). Keep Kurz (2016)."
+    report = {"citas_validas": [s.key for s in sources], "citas_a_eliminar": ["Smith (2020)"]}
+    with patch.object(llm, "chat_json", return_value={"parches": [
+        {"buscar": "Unsupported (Smith, 2020).", "reemplazar": "Narrower claim."},
+        {"buscar": "Keep Kurz (2016).", "reemplazar": "Lost source."}]}) as chat:
+        got = pipeline.revise(pipeline.Run(log=lambda *_: None), text, report, sources)
+    assert got == "Narrower claim. Keep Kurz (2016).", got
+    assert '"citas_a_eliminar": [\n    "Smith (2020)"' in chat.call_args.args[1]
+
+
+def test_live_publish_requires_exact_final_approval_before_side_effects() -> None:
+    from unittest.mock import patch
+    text = "# Title\n\nA grounded article."
+    approval = {"publicable": True, "semantic_review_passed": True,
+                "text_hash": humanize.text_hash(text)}
+    with patch.object(publish, "configured", return_value=True), \
+         patch.object(publish, "find_cover", side_effect=AssertionError("cover called")), \
+         patch.object(publish.requests, "post", side_effect=AssertionError("network called")):
+        for verdict in (None, {}, {**approval, "publicable": False},
+                        {**approval, "text_hash": "stale"},
+                        {**approval, "semantic_review_passed": False}):
+            try:
+                publish.publish(text, status="publish", approval=verdict)
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("Unsafe live publication allowed")
+        bad = "# Title\n\n[dato a verificar]"
+        try:
+            publish.publish(bad, status="publish", approval={**approval, "text_hash": humanize.text_hash(bad)})
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Placeholder allowed")
+    with tempfile.TemporaryDirectory() as tmp:
+        folder = pathlib.Path(tmp)
+        (folder / "05_final.md").write_text(text, encoding="utf-8")
+        with patch.object(publish, "publish") as upload:
+            try:
+                publish.publish_run(folder, status="publish")
+            except ValueError:
+                pass
+            else:
+                raise AssertionError("Run bypassed approval")
+            upload.assert_not_called()
+        (folder / "09_publicado.json").write_text('{"id": 42}', encoding="utf-8")
+        assert publish.publish_run(folder, status="publish", log=lambda *_: None) is None
+        assert (folder / "09_publicado.json").read_text() == '{"id": 42}'
+
+
+def test_assembled_file_carries_the_approval_that_lets_it_go_live() -> None:
+    """The approval is given to the body; publish_run reads the assembled page.
+    assemble() must rebind the hash to that page, and residue in it must veto."""
+    from unittest.mock import patch
+    src = research.assign_keys([research.Source(title="A", authors=["Ana Smith"], year="2020")])
+    with tempfile.TemporaryDirectory() as tmp:
+        run = pipeline.Run(dir=pathlib.Path(tmp), fmt="corto", log=lambda *_: None)
+        for body, live in (("Cuerpo (Smith, 2020).", True),
+                           ("Cuerpo (Smith, 2020). [dato a verificar]", False)):
+            verdict = {"publicable": True, "semantic_review_passed": True,
+                       "text_hash": humanize.text_hash(body)}
+            pipeline.assemble(run, {"titulo": "T"}, {"titulo_final": "T"}, body, src, {}, {}, verdict)
+            (run.dir / "09_publicado.json").unlink(missing_ok=True)
+            with patch.object(publish, "publish", return_value={"id": 1}) as upload:
+                try:
+                    publish.publish_run(run.dir, status="publish", log=lambda *_: None)
+                except ValueError:
+                    assert not live, body
+                else:
+                    assert live, body
+                    upload.assert_called_once()
+
+
+def test_final_approval_needs_evidence_clean_review_and_complete_text() -> None:
+    from unittest.mock import patch
+    source = research.Source(key="Smith, 2020", title="A", authors=["Ana Smith"], year="2020",
+                             fulltext="SOURCE EVIDENCE: observed not caused.")
+    text = "Smith (2020) observed it."
+    clean = {"veredicto": "aprobado", "problemas": [], "text_hash": humanize.text_hash(text)}
+    run = pipeline.Run(log=lambda *_: None)
+    with patch.object(llm, "chat_json", return_value={"publicable": True}) as chat:
+        got = pipeline.final_approval(run, text, {"titulo": "T"}, {}, [source], clean)
+        assert got["publicable"] and got["text_hash"] == humanize.text_hash(text)
+        assert "SOURCE EVIDENCE" in chat.call_args.args[1]
+        for report in ({}, {**clean, "problemas": [{"gravedad": "alta", "problema": "unsupported"}]},
+                       {**clean, "text_hash": "stale"}, {**clean, "citas_a_eliminar": ["Smith, 2020"]}):
+            assert not pipeline.final_approval(run, text, {"titulo": "T"}, {}, [source], report)["publicable"]
+        long = text * 10000
+        assert not pipeline.final_approval(run, long, {"titulo": "T"}, {}, [source],
+                                          {**clean, "text_hash": humanize.text_hash(long)})["publicable"]
+
+
 class _FakeService:
     def __init__(self, replies):
         self.replies, self.calls = list(replies), []
@@ -44,7 +158,7 @@ def _shared(replies: dict):
     def ctx():
         seen = []
 
-        def factory(provider, overrides):
+        def factory(provider, overrides, effort=""):
             service = _FakeService(replies[provider])
             seen.append((provider, dict(overrides), service.calls))
             return service
@@ -386,14 +500,171 @@ def test_chunks_splits_a_long_section_by_subsection() -> None:
     assert pipeline._chunks({"n": 1, "palabras": 6000}) == [("01", "", 6000, "")]
 
 
+def test_provider_menu_uses_the_full_shared_catalogue_in_shared_order() -> None:
+    from ai_suite.providers import provider_options
+
+    aliases = {"opencode-go": "go", "opencode-zen": "zen", "openai-oauth": "oauth",
+               "gpt4free": "g4f"}
+    expected = [aliases.get(name, name) for name in provider_options()]
+    assert list(llm.PROVIDERS) == expected
+    assert llm.SHARED["commandcode"] == "commandcode"
+    assert llm.PROVIDERS["commandcode"]["keyless"] is True
+    assert "deepseek/deepseek-v4-pro" in llm.PROVIDERS["commandcode"]["models"]
+    assert llm.parse_models("opencode-go:qwen3.8-flash,openai-oauth:gpt-6-sol,") == {
+        "go": ("qwen3.8-flash", ""), "oauth": ("gpt-6-sol", "")}
+    previous = llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES
+    try:
+        llm.configure(["opencode-zen", "commandcode"])
+        assert llm.CHAIN == ["zen", "commandcode"]
+    finally:
+        llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES = previous
+
+
+def test_routing_keeps_judge_owners_without_stranding_the_roles() -> None:
+    previous = llm.CHAIN, llm.HEAD, llm.PRO, llm.FLASH, llm.JUDGES
+    try:
+        # claude's default PRO is a judge id; hyper must still back it up.
+        llm.configure(["claude", "hyper"])
+        assert [b for b in llm.CHAIN if llm._serves(b, llm.PRO)] == ["claude", "hyper"]
+        # A judge id picked as PRO on commandcode is served there.
+        llm.configure(["commandcode", "hyper"], "claude-opus-5-5", "claude-sonnet-5")
+        assert llm._serves("commandcode", llm.PRO) and llm._serves("hyper", llm.PRO)
+        # Off the roles, a Claude-only alias never reaches a gateway, but a
+        # catalogue that sells the model still serves it.
+        llm.configure(["hyper", "zen"])
+        assert not llm._serves("hyper", "sonnet")
+        assert not llm._serves("zen", "gpt-6-sol")
+        assert llm._serves("commandcode", "claude-sonnet-5")
+        assert not llm._serves("commandcode", "claude-opus-5-5")   # the judge's seat
+        assert not llm._serves("hyper", "gpt-6.1-sol")
+    finally:
+        llm.CHAIN, llm.HEAD, llm.PRO, llm.FLASH, llm.JUDGES = previous
+
+
+def test_shared_provider_names_work_on_the_cli_and_chain_is_deduped() -> None:
+    import main
+    assert main.provider_arg("opencode-go") == "go"
+    assert main.provider_arg("commandcode") == "commandcode"
+    assert main.resolve_choice("openai-oauth", list(llm.PROVIDERS)) == "oauth"
+    saved = os.environ.get("AW_BACKEND")
+    try:
+        os.environ["AW_BACKEND"] = "opencode-go,go,commandcode"
+        assert llm._default_chain() == ["go", "commandcode"]
+    finally:
+        if saved is None:
+            os.environ.pop("AW_BACKEND", None)
+        else:
+            os.environ["AW_BACKEND"] = saved
+
+
+def test_wizard_backups_default_to_the_current_chain_not_every_provider() -> None:
+    import builtins, main
+    previous = llm.CHAIN, llm.HEAD, llm.PRO, llm.FLASH, llm.JUDGES
+    saved = builtins.input, main.pick_pair, main.SHARED_MENU
+    try:
+        llm.configure(["hyper", "zen"])
+        answers = iter(["", "", "n", "n"])   # main=hyper, backups=default, no pairs, no save
+        builtins.input = lambda *a: next(answers)
+        main.pick_pair = lambda prov: (llm.PROVIDERS[prov]["pro"], llm.PROVIDERS[prov]["flash"], ("", ""))
+        main.pick_models()
+        assert llm.CHAIN == ["hyper", "zen"], llm.CHAIN
+    finally:
+        builtins.input, main.pick_pair, main.SHARED_MENU = saved
+        llm.CHAIN, llm.HEAD, llm.PRO, llm.FLASH, llm.JUDGES = previous
+
+
+def test_new_shared_provider_does_not_inherit_another_providers_key() -> None:
+    saved_service = llm.shared_service
+    previous = os.environ.get("AW_API_KEY")
+    seen = []
+
+    class Service:
+        def generate_content(self, *args, **kwargs):
+            return "article text"
+
+    try:
+        os.environ["AW_API_KEY"] = "hyper-secret"
+        llm.shared_service = lambda provider, overrides, effort="": (
+            seen.append((provider, overrides)), Service())[1]
+        assert llm._send("google", "gemini-3.5-flash", "write", None,
+                         temperature=None, max_tokens=None, retries=0) == "article text"
+        assert seen[0][0] == "google"
+        assert "api_key" not in seen[0][1]
+    finally:
+        llm.shared_service = saved_service
+        if previous is None:
+            os.environ.pop("AW_API_KEY", None)
+        else:
+            os.environ["AW_API_KEY"] = previous
+
+
+def test_each_link_sends_its_own_role_effort_and_judges_none() -> None:
+    saved_service, saved_efforts = llm.shared_service, dict(llm.EFFORTS)
+    seen = []
+
+    class Service:
+        def generate_content(self, *args, **kwargs):
+            return "article text"
+
+    try:
+        llm.configure(["claude", "hyper"], "opus", "sonnet",
+                      efforts={"claude": ("high", "low"), "hyper": ("", "medium")})
+        llm.shared_service = lambda provider, overrides, effort="": (
+            seen.append((overrides.get("writing_model"), effort)), Service())[1]
+        for backend, model in (("claude", "opus"), ("claude", "sonnet"),
+                               ("claude", "claude-opus-5-5"),
+                               ("hyper", llm._as("hyper", "opus")),
+                               ("hyper", llm._as("hyper", "sonnet"))):
+            llm._send(backend, model, "write", None, temperature=None, max_tokens=None, retries=0)
+        assert seen == [("opus", "high"), ("sonnet", "low"), (None, ""), (None, ""),
+                        (llm.PROVIDERS["hyper"]["flash"], "medium")], seen
+        assert "PRO=opus@high FLASH=sonnet@low" in llm.describe()
+    finally:
+        llm.shared_service = saved_service
+        llm.EFFORTS.clear()
+        llm.EFFORTS.update(saved_efforts)
+        llm.configure(["hyper", "go"])
+
+
+def test_commandcode_uses_keyless_shared_cli_and_preserves_judge_owners() -> None:
+    saved_service = llm.shared_service
+    saved_env = {key: os.environ.get(key) for key in ("AW_API_KEY", "OPENAI_API_KEY")}
+    seen = []
+
+    class Service:
+        def generate_content(self, *args, **kwargs):
+            seen.append((args, kwargs))
+            return "article text"
+
+    try:
+        os.environ["AW_API_KEY"] = "hyper-secret"
+        os.environ["OPENAI_API_KEY"] = "openai-secret"
+        llm.shared_service = lambda provider, overrides, effort="": (
+            seen.append((provider, overrides)), Service())[1]
+        assert llm._send("commandcode", "claude-opus-5-5", "write", None,
+                         temperature=None, max_tokens=None, retries=0) == "article text"
+        assert seen[0] == ("commandcode", {"timeout": 1800})
+        assert llm._serves("commandcode", "claude-opus-5-5") is False
+        assert llm._serves("claude", "claude-opus-5-5") is True
+        assert llm._serves("commandcode", "gpt-6.1-sol") is False
+        assert llm._serves("oauth", "gpt-6.1-sol") is True
+    finally:
+        llm.shared_service = saved_service
+        for key, value in saved_env.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+
 def test_judges_are_the_fixed_panel_on_their_own_providers() -> None:
-    """opus 5.5 and gpt-6-astra judge whatever the chain; each goes only to its owner."""
+    """opus 5.5 and gpt-6.1-sol judge whatever the chain; each goes only to its owner."""
     import llm
     saved = (llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES)
     try:
         llm.configure(["hyper"], pro="qwen3.7-max", flash="deepseek-v4-flash-0731")
-        assert llm.JUDGES == ["claude-opus-5-5", "gpt-6-astra"]
-        assert [b for b in llm.PROVIDERS if llm._serves(b, "gpt-6-astra")] == ["oauth"]
+        assert llm.JUDGES == ["claude-opus-5-5", "gpt-6.1-sol"]
+        assert [b for b in llm.PROVIDERS if llm._serves(b, "gpt-6.1-sol")] == ["oauth"]
         assert [b for b in llm.PROVIDERS if llm._serves(b, "claude-opus-5-5")] == ["claude"]
     finally:
         llm.CHAIN, llm.PRO, llm.FLASH, llm.JUDGES = saved
@@ -409,7 +680,7 @@ def test_failed_judges_are_skipped_and_all_failing_falls_back_to_the_drafter() -
         return {"ai_probability": 40, "veredicto": "ia"}
     llm.chat_json = fake
     try:
-        dead = {"gpt-6-astra"}
+        dead = {"gpt-6.1-sol"}
         got = humanize.llm_judges("texto", log=lambda *_: None)
         assert [r["model"] for r in got] == ["claude-opus-5-5"], got
         dead = set(llm.JUDGES)
@@ -417,7 +688,7 @@ def test_failed_judges_are_skipped_and_all_failing_falls_back_to_the_drafter() -
         drafter = llm.PRO if pipeline.DRAFT_ROLE == "pro" else llm.FLASH
         assert [r["model"] for r in got] == [drafter], got
         # an explicit panel (the benches) never gets a stand-in
-        assert humanize.llm_judges("texto", ["gpt-6-astra"], lambda *_: None) == []
+        assert humanize.llm_judges("texto", ["gpt-6.1-sol"], lambda *_: None) == []
     finally:
         llm.chat_json = old
 
@@ -460,6 +731,38 @@ def test_continuous_mode_takes_the_topic_for_the_first_article_only() -> None:
         assert seen == ["naves generacionales", ""], seen
     finally:
         main.run_once = saved
+
+
+def test_continuous_cli_preserves_requested_topic() -> None:
+    """Exercise CLI parsing, the continuous loop and Run construction together."""
+    import main
+    from unittest.mock import patch
+    if str(llm.BOOK_WRITER) not in sys.path:
+        sys.path.insert(0, str(llm.BOOK_WRITER))
+    import ai_book_creator.env
+    topic = "generational starships outside of capitalist accumulation and the law of value"
+    for count in ("0", "2"):
+        for exact in (False, True):
+            seen = []
+            def fake_pipeline(run, **kwargs):
+                seen.append((run.brief, run.exact_topic, run.mode, run.ask_library))
+                if count == "0" and len(seen) == 2:
+                    raise KeyboardInterrupt
+            argv = ["main.py", "--mode", "auto", "--continuous", count,
+                    "--topic", topic] + (["--exact-topic"] if exact else [])
+            with patch.object(sys, "argv", argv), \
+                 patch.object(sys.stdin, "isatty", return_value=False), \
+                 patch.object(ai_book_creator.env, "exit_on_ctrl_c"), \
+                 patch.object(pipeline, "LANG", "en"), \
+                 patch.object(humanize, "LANG", "en"), \
+                 patch.object(llm, "INTERACTIVE", False), \
+                 patch.object(main.ui, "COMPACT", False), \
+                 patch.object(main, "CURRENT", None), \
+                 patch.object(pipeline, "run_pipeline", side_effect=fake_pipeline), \
+                 patch.object(publish, "publish_run") as upload:
+                assert main.main() == 0
+                upload.assert_not_called()
+            assert seen == [(topic, exact, "auto", False), ("", False, "auto", False)], seen
 
 
 def test_opencode_alias_maps_versioned_ids() -> None:
@@ -721,10 +1024,12 @@ def test_publish_policy_only_goes_live_when_approved_and_clean() -> None:
 def test_final_approval_reads_publicable_as_a_real_boolean() -> None:
     real = pipeline.llm.chat_json
     run = pipeline.Run(log=lambda *_: None)
+    src = research.Source(key="Smith, 2020", title="A", authors=["Ana Smith"], year="2020")
+    clean = {"veredicto": "aprobado", "problemas": [], "text_hash": humanize.text_hash("texto")}
     try:
         for said, expected in (("false", False), ("true", True), (True, True), ("no", False)):
             pipeline.llm.chat_json = lambda *a, said=said, **k: {"publicable": said}
-            got = pipeline.final_approval(run, "texto", {"titulo": "t"}, {})
+            got = pipeline.final_approval(run, "texto", {"titulo": "t"}, {}, [src], clean)
             assert got["publicable"] is expected, (said, got)
     finally:
         pipeline.llm.chat_json = real
@@ -1018,7 +1323,8 @@ def test_dead_chain_asks_interactively_to_hold_or_change() -> None:
         llm._send = send
         llm.configure(["claude"])
         llm.INTERACTIVE = True
-        answers = iter(["c", "2", "", ""])          # cambiar → hyper, defaults
+        answers = iter(["c", str(list(llm.PROVIDERS).index("hyper") + 1), "", ""])
+        # change → hyper, defaults; index follows ai-suite's canonical provider order
         __import__("main").SHARED_MENU = False     # plain menu reads builtins.input
         real_input = builtins.input
         builtins.input = lambda *_: next(answers)
@@ -1168,7 +1474,9 @@ def test_a_resumed_run_does_not_re_review_or_re_humanize() -> None:
         with tempfile.TemporaryDirectory() as d:
             run = pipeline.Run(dir=pathlib.Path(d), mode="auto", log=lambda *_: None)
             pipeline.run_pipeline(run, rounds=2)
-            assert calls == ["review", "revise", "review", "humanize"], calls
+            # rounds, humanizer, then the final review of the text actually published
+            # and its one repair attempt
+            assert calls == ["review", "revise", "review", "humanize", "review", "revise"], calls
             calls.clear()
             pipeline.run_pipeline(run, rounds=2)
             assert calls == [], calls
@@ -1346,7 +1654,7 @@ def test_g4f_is_a_keyless_local_gpt4free_link() -> None:
             return "texto"
     saved_shared = llm.shared_service
     saved_env = {k: os.environ.pop(k, None) for k in ("G4F_API_KEY", "AW_API_KEY")}
-    llm.shared_service = lambda provider, overrides: (seen.append((provider, overrides)), Service())[1]
+    llm.shared_service = lambda provider, overrides, effort="": (seen.append((provider, overrides)), Service())[1]
     try:
         os.environ["AW_API_KEY"] = "hyper-key"
         assert llm._send("g4f", "glm-5.3", "hola", None, temperature=None,
@@ -2218,6 +2526,76 @@ def test_an_unparseable_201_still_yields_a_receipt() -> None:
     except RuntimeError:
         return
     raise AssertionError("a 200 HTML page was taken for a created post")
+
+
+def test_compact_background_output_stays_on_one_line() -> None:
+    import contextlib
+    import io
+    from unittest.mock import patch
+    import ui
+
+    output = io.StringIO()
+    with patch.multiple(ui, COMPACT=True, TTY=True, ENABLED=False, _BAR="", _STATUS=False), \
+         patch.object(llm, "CHAIN", ["claude", "hyper"]), \
+         patch.object(llm, "INTERACTIVE", False), \
+         patch.object(llm, "_serves", return_value=True), \
+         patch.object(llm, "_send", side_effect=[RuntimeError("offline"), "answer"]), \
+         contextlib.redirect_stdout(output):
+        assert llm.chat(llm.PRO, "p") == "answer"
+        ui.log("  · judge gpt-6.1-sol: 94.0% AI (ai)")
+        ui.log("[detector] round 1: style=47.4 detector=94.0 (threshold 25.0)")
+        assert "\n" not in output.getvalue(), output.getvalue()
+        ui.log("[error] all providers failed")
+        assert "[error] all providers failed\n" in output.getvalue()
+
+
+def test_detector_load_has_no_library_chatter() -> None:
+    import contextlib
+    import io
+    import types
+    from unittest.mock import Mock, patch
+
+    transformer_log, hub_log = Mock(), Mock()
+    hub_utils = types.SimpleNamespace(logging=hub_log, disable_progress_bars=Mock())
+    classifier = object()
+
+    def load(*args, **kwargs):
+        transformer_log.set_verbosity_error.assert_called_once()
+        transformer_log.disable_progress_bar.assert_called_once()
+        hub_log.set_verbosity_error.assert_called_once()
+        hub_utils.disable_progress_bars.assert_called_once()
+        return classifier
+
+    modules = {"transformers": types.SimpleNamespace(pipeline=load),
+               "transformers.utils": types.SimpleNamespace(logging=transformer_log),
+               "huggingface_hub.utils": hub_utils}
+    humanize._hf_detector.cache_clear()
+    try:
+        with patch.dict(sys.modules, modules):
+            assert humanize._hf_detector() is classifier, "detector must load with chatter disabled"
+    finally:
+        humanize._hf_detector.cache_clear()
+
+
+def test_shared_service_routes_diagnostics_through_status() -> None:
+    import types
+    from unittest.mock import Mock, patch
+    import ui
+
+    factory = Mock()
+    modules = {
+        "ai_book_creator": types.ModuleType("ai_book_creator"),
+        "ai_book_creator.cli": types.SimpleNamespace(provider_config_path=lambda _: "unused.json"),
+        "ai_book_creator.services": types.ModuleType("ai_book_creator.services"),
+        "ai_book_creator.services.ai_service": types.SimpleNamespace(AIService=factory),
+    }
+    with patch.dict(sys.modules, modules), patch.object(llm, "_services", {}), \
+         patch.object(sys, "path", list(sys.path)), patch.object(ui, "status") as status:
+        llm.shared_service("claude", {})
+        callback = factory.call_args.kwargs.get("log")
+        assert callable(callback), "shared service diagnostics bypass the status line"
+        callback("startup")
+        status.assert_called_once_with("[llm] startup")
 
 
 def main() -> int:
