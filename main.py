@@ -454,10 +454,12 @@ def main() -> int:
                    help="main provider (default: AW_BACKEND or hyper)")
     p.add_argument("--backups", dest="respaldo", default="", metavar="A,B",
                    help="backup providers, in order; 'no' for none")
-    p.add_argument("--pro", default="", metavar="MODEL",
+    p.add_argument("--pro", "--review-model", default="", metavar="MODEL",
                    help="PRO role model (topic, review, approval)")
-    p.add_argument("--flash", default="", metavar="MODEL",
+    p.add_argument("--flash", "--model", default="", metavar="MODEL",
                    help="FLASH role model (outline, drafting, rewriting)")
+    p.add_argument("--effort", default=None, help="head provider FLASH/work reasoning effort")
+    p.add_argument("--review-effort", default=None, help="head provider PRO/review reasoning effort")
     p.add_argument("--models", dest="modelos", default="", metavar="PROV:PRO/FLASH,...",
                    help="backup models, e.g. 'zen:glm-5.3-flash/deepseek-v4.1-flash,go:qwen3.8-flash'")
     p.add_argument("--wizard", action="store_true",
@@ -465,6 +467,8 @@ def main() -> int:
     p.add_argument("--continuous", dest="continuo", type=int, default=None, metavar="N",
                    help="write N articles; --topic guides the first new article, then "
                         "topics are picked automatically; 0 = never stop")
+    p.add_argument("--forever", dest="continuo", action="store_const", const=0,
+                   help="alias for --continuous 0")
     p.add_argument("--every", dest="cada", type=int, default=0, metavar="MIN",
                    help="minutes to pause between articles in continuous mode")
     args = p.parse_args()
@@ -491,7 +495,8 @@ def main() -> int:
     from ai_book_creator.env import exit_on_ctrl_c
     exit_on_ctrl_c(resume_hint, "")
 
-    if args.proveedor or args.respaldo or args.pro or args.flash or args.modelos:
+    if (args.proveedor or args.respaldo or args.pro or args.flash or args.modelos
+            or args.effort is not None or args.review_effort is not None):
         head = args.proveedor or llm.CHAIN[0]
         if args.respaldo.strip().lower() in ("no", "ninguno"):
             backups = []
@@ -499,8 +504,13 @@ def main() -> int:
             backups = [b.strip() for b in args.respaldo.split(",") if b.strip()]
         else:
             backups = [b for b in llm.CHAIN if b != head]
+        efforts = None
+        if args.effort is not None or args.review_effort is not None:
+            review, work = llm.EFFORTS.get(head, ("", ""))
+            efforts = {head: (args.review_effort if args.review_effort is not None else review,
+                              args.effort if args.effort is not None else work)}
         llm.configure([head, *backups], args.pro, args.flash,
-                      llm.parse_models(args.modelos))
+                      llm.parse_models(args.modelos), efforts)
     ui.log(f"[models] {llm.describe()}")
 
     if args.setup:
@@ -533,7 +543,8 @@ def main() -> int:
 
     # Someone at the terminal picks the models every run, --resume and --continuous
     # included (asked once, before the loop starts); model flags skip the question.
-    model_flags = args.proveedor or args.respaldo or args.pro or args.flash or args.modelos
+    model_flags = (args.proveedor or args.respaldo or args.pro or args.flash or args.modelos
+                   or args.effort is not None or args.review_effort is not None)
     if sys.stdin.isatty() and not model_flags and not (args.wizard or len(sys.argv) == 1):
         pick_models()
 

@@ -61,6 +61,8 @@ python main.py --resume                         # resume the latest run (every s
 python main.py --resume output/20260820-slug    # resume a given run
 python main.py --detect text.md                 # only run the AI detectors
 python main.py --spanish --fmt medium           # article in Spanish (English is the default)
+python main.py --provider hyper --model deepseek-v4.1-flash --review-model qwen3.8-flash --effort medium --review-effort high
+python main.py --forever --every 90             # same loop as --continuous 0; no publishing
 ```
 
 ### Flags
@@ -80,6 +82,9 @@ python main.py --spanish --fmt medium           # article in Spanish (English is
 | `--detect file.md` | only the detectors, over a file |
 | `--publish no\|draft\|auto\|live` | upload as draft, live if approved and under the threshold, or always live |
 | `--provider`, `--backups A,B`, `--pro`, `--flash`, `--models` | provider chain and models (see Models) |
+| `--model`, `--review-model` | aliases for `--flash` (work) and `--pro` (review); `--drafter pro` still controls drafting |
+| `--effort`, `--review-effort` | head provider FLASH/work and PRO/review effort overrides; omitted roles keep their existing effort/provider default |
+| `--forever` | alias for `--continuous 0` |
 | `--wizard` | the wizard asks even when other flags are given |
 | `--continuous N`, `--every MIN` | N articles in a row (0 = never stop); `--topic` guides the first new article, then topics are picked automatically; `--every` sets the pause |
 

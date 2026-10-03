@@ -23,6 +23,22 @@ import publish
 import research
 import style
 
+def test_noninteractive_launches_hide_windows_with_portable_fallback() -> None:
+    import ast
+    from types import SimpleNamespace
+    for filename in ('llm.py', 'research.py'):
+        tree = ast.parse((pathlib.Path(__file__).parent / filename).read_text(encoding='utf-8'))
+        calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute) and isinstance(n.func.value, ast.Name)
+                 and n.func.value.id == 'subprocess' and n.func.attr == 'run']
+        assert len(calls) == 1, filename
+        flags = next((k.value for k in calls[0].keywords if k.arg == 'creationflags'), None)
+        assert flags is not None, f'{filename}: noninteractive launch must hide its console'
+        code = compile(ast.Expression(flags), filename, 'eval')
+        assert eval(code, {'subprocess': SimpleNamespace(CREATE_NO_WINDOW=0x08000000)}) == 0x08000000
+        assert eval(code, {'subprocess': SimpleNamespace()}) == 0
+
+
 def test_editorial_residue_is_narrow_and_bilingual() -> None:
     for text in ("A claim [dato a verificar].", "[data to verify]", "Now the final section text:",
                  "The dossier excerpt available here stops at the contents.",
@@ -763,6 +779,28 @@ def test_continuous_cli_preserves_requested_topic() -> None:
                 assert main.main() == 0
                 upload.assert_not_called()
             assert seen == [(topic, exact, "auto", False), ("", False, "auto", False)], seen
+
+
+def test_cli_role_aliases_efforts_and_forever() -> None:
+    import main as cli
+    from unittest.mock import patch
+    if str(llm.BOOK_WRITER) not in sys.path:
+        sys.path.insert(0, str(llm.BOOK_WRITER))
+    import ai_book_creator.env
+    for flags, expected in ((["--effort", "medium"], ("high", "medium")),
+                            (["--review-effort", "max"], ("max", "low")),
+                            (["--effort", "medium", "--review-effort", "max"], ("max", "medium"))):
+        argv = ["main.py", "--provider", "hyper", "--model", "work", "--review-model", "review", "--forever", *flags]
+        with patch.object(sys, "argv", argv), patch.object(sys.stdin, "isatty", return_value=False), \
+             patch.object(ai_book_creator.env, "exit_on_ctrl_c"), \
+             patch.object(llm, "EFFORTS", {"hyper": ("high", "low")}), \
+             patch.object(pipeline, "LANG", "en"), patch.object(humanize, "LANG", "en"), \
+             patch.object(llm, "INTERACTIVE", False), patch.object(cli.ui, "COMPACT", False), \
+             patch.object(llm, "configure") as configure, patch.object(cli, "loop", return_value=0) as loop:
+            assert cli.main() == 0
+            assert configure.call_args.args[:3] == (["hyper", *[b for b in llm.CHAIN if b != "hyper"]], "review", "work")
+            assert configure.call_args.args[4] == {"hyper": expected}
+            assert loop.call_args.args[0].continuo == 0
 
 
 def test_opencode_alias_maps_versioned_ids() -> None:
